@@ -1,0 +1,4 @@
+# Git ignore
+# Ignore CSV data files
+*.csv
+*.CSV
