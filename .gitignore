@@ -2,3 +2,4 @@
 # Ignore CSV data files
 *.csv
 *.CSV
+.vscode/

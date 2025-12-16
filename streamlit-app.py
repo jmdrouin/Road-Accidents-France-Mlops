@@ -45,7 +45,7 @@ st.markdown('<p class="subtitle">Data Science project on severity prediction</p>
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Select a page:",
-    ["Data Mining & Visualization", "Pre-processing & Feature engineering", "Modelling"]
+    ["Data Mining & Visualization", "Pre-processing & Feature engineering", "Modelling", "Conclusion"]
 )
 
 st.sidebar.markdown("---")
@@ -61,26 +61,75 @@ if page == "Data Mining & Visualization":
     st.subheader("🔍 Data Overview")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Records", "TBD", help="Total number of accident records")
+        st.metric("Total Records", "839.985", help="Total number of accident records")
     with col2:
-        st.metric("Features", "TBD", help="Number of features in dataset")
+        st.metric("Features", "52", help="Number of features in dataset")
     with col3:
-        st.metric("Time Period", "TBD", help="Data collection period")
+        st.metric("Time Period", "2005 to 2016", help="Data collection period")
     
     st.markdown("---")
     
     # Data Sample Section
     st.subheader("📋 Dataset Sample")
-    st.info("🚧 **Work in Progress**: Data loading and preview will be implemented here.")
-    with st.expander("Click to see expected features"):
-        st.write("""
-        - **Temporal features**: Date, Time, Day of week
-        - **Location features**: GPS coordinates, Department, Municipality
-        - **Road features**: Road type, Surface condition, Lighting
-        - **Weather features**: Weather conditions, Atmospheric conditions
-        - **Accident features**: Collision type, Number of vehicles involved
-        - **Severity**: Target variable (Light, Moderate, Severe, Fatal)
-        """)
+    
+    # Load data with caching
+    @st.cache_data
+    def load_csv_samples():
+        caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+        places = pd.read_csv('places.csv')
+        users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+        vehicles = pd.read_csv('vehicles.csv')
+        holidays = pd.read_csv('holidays.csv')
+        return {
+            'caracteristics': caracteristics.sample(5, random_state=42),
+            'places': places.sample(5, random_state=42),
+            'users': users.sample(5, random_state=42),
+            'vehicles': vehicles.sample(5, random_state=42),
+            'holidays': holidays.head(5)
+        }
+    
+    try:
+        samples = load_csv_samples()
+        
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📄 Caracteristics", "📍 Places", "👥 Users", "🚗 Vehicles", "📅 Holidays"])
+        
+        with tab1:
+            st.markdown("**Caracteristics Dataset** - General accident information")
+            st.dataframe(samples['caracteristics'], use_container_width=True)
+            st.caption(f"Showing 5 random samples from caracteristics.csv")
+        
+        with tab2:
+            st.markdown("**Places Dataset** - Road and location details")
+            st.dataframe(samples['places'], use_container_width=True)
+            st.caption(f"Showing 5 random samples from places.csv")
+        
+        with tab3:
+            st.markdown("**Users Dataset** - Information about people involved")
+            st.dataframe(samples['users'], use_container_width=True)
+            st.caption(f"Showing 5 random samples from users.csv")
+        
+        with tab4:
+            st.markdown("**Vehicles Dataset** - Vehicle information")
+            st.dataframe(samples['vehicles'], use_container_width=True)
+            st.caption(f"Showing 5 random samples from vehicles.csv")
+        
+        with tab5:
+            st.markdown("**Holidays Dataset** - French public holidays")
+            st.dataframe(samples['holidays'], use_container_width=True)
+            st.caption(f"Showing first 5 entries from holidays.csv")
+        
+        with st.expander("📚 Dataset Features Description"):
+            st.write("""
+            - **Temporal features**: Date, Time, Day of week and Holiday flag
+            - **Location features**: GPS coordinates, Department, Municipality, urban/rural classification
+            - **Road features**: Road type, Surface condition, Lighting conditions
+            - **Weather features**: Weather conditions, Atmospheric conditions
+            - **Accident features**: Collision type, Vehicles and persons involved, Safety equipment
+            - **Severity**: Target variable (Unscathed, Light injury, Hospitalized, Fatal)
+            """)
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        st.info("Please ensure CSV files are in the same directory as this script.")
     
     st.markdown("---")
     
@@ -285,6 +334,145 @@ elif page == "Modelling":
     st.write("- Training time comparison")
     st.write("- Overfitting analysis (train vs validation performance)")
     st.write("- Final model recommendation")
+
+# Page 4: Conclusion
+elif page == "Conclusion":
+    st.markdown('<p class="section-header">📝 Conclusion</p>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Project Summary Section
+    st.subheader("📊 Project Summary")
+    st.info("🚧 **Work in Progress**: Overview of the complete analysis pipeline")
+    st.write("""This section will summarize:""")
+    st.write("- Dataset characteristics and preprocessing steps taken")
+    st.write("- Feature engineering techniques applied")
+    st.write("- Models tested and their performance comparison")
+    st.write("- Best performing model and its metrics")
+    
+    st.markdown("---")
+    
+    # Key Findings Section
+    st.subheader("🔍 Key Findings")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.warning("🚧 **Coming Soon**: Data insights")
+        st.write("Expected findings:")
+        st.write("- Most critical factors affecting accident severity")
+        st.write("- Temporal patterns and trends identified")
+        st.write("- Geographical hotspots and risk zones")
+        st.write("- Weather and road condition correlations")
+    
+    with col2:
+        st.warning("🚧 **Coming Soon**: Model insights")
+        st.write("Expected insights:")
+        st.write("- Most predictive features for severity")
+        st.write("- Model performance across severity classes")
+        st.write("- Trade-offs between different models")
+        st.write("- Model interpretability and explainability")
+    
+    st.markdown("---")
+    
+    # Recommendations Section
+    st.subheader("💡 Recommendations")
+    
+    tab1, tab2, tab3 = st.tabs(["Policy Recommendations", "Technical Improvements", "Deployment Strategy"])
+    
+    with tab1:
+        st.markdown("### 🏛️ Policy & Safety Recommendations")
+        st.info("🚧 **Work in Progress**: Actionable recommendations based on findings")
+        st.write("Recommendations will include:")
+        st.write("- Targeted interventions for high-risk locations")
+        st.write("- Time-based safety measures (rush hour, night driving)")
+        st.write("- Weather-related precautions and warnings")
+        st.write("- Infrastructure improvements for accident-prone areas")
+        st.write("- Public awareness campaigns based on data insights")
+    
+    with tab2:
+        st.markdown("### 🔧 Model & Technical Improvements")
+        st.info("🚧 **Work in Progress**: Areas for technical enhancement")
+        st.write("Potential improvements:")
+        st.write("- Incorporate additional data sources (traffic volume, road quality)")
+        st.write("- Real-time prediction capabilities")
+        st.write("- Deep learning architectures for spatial-temporal patterns")
+        st.write("- Handling class imbalance more effectively")
+        st.write("- Model ensemble and stacking strategies")
+    
+    with tab3:
+        st.markdown("### 🚀 Deployment Strategy")
+        st.info("🚧 **Work in Progress**: Production deployment considerations")
+        st.write("Deployment plan:")
+        st.write("- API development for model serving")
+        st.write("- Integration with traffic management systems")
+        st.write("- Real-time data pipeline architecture")
+        st.write("- Model monitoring and retraining schedule")
+        st.write("- Scalability and performance optimization")
+    
+    st.markdown("---")
+    
+    # Future Work Section
+    st.subheader("🔮 Future Work")
+    st.warning("🚧 **Coming Soon**: Roadmap for project extension")
+    st.write("Future directions:")
+    st.write("- **Extended temporal analysis**: Multi-year trend forecasting")
+    st.write("- **Causal inference**: Understanding causality beyond correlation")
+    st.write("- **Individual-level factors**: Driver behavior, vehicle age, etc.")
+    st.write("- **Economic impact**: Cost analysis of accidents by severity")
+    st.write("- **Comparative analysis**: Benchmarking with other European countries")
+    st.write("- **Mobile application**: Real-time risk assessment for drivers")
+    
+    st.markdown("---")
+    
+    # Limitations Section
+    st.subheader("⚠️ Limitations & Considerations")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info("📉 Data Limitations")
+        st.write("Considerations:")
+        st.write("- Reporting bias in accident data")
+        st.write("- Missing values and data quality issues")
+        st.write("- Temporal coverage and granularity")
+        st.write("- Limited behavioral variables")
+    
+    with col2:
+        st.info("🤖 Model Limitations")
+        st.write("Considerations:")
+        st.write("- Class imbalance in severity levels")
+        st.write("- Generalization to unseen scenarios")
+        st.write("- Model interpretability trade-offs")
+        st.write("- Computational complexity constraints")
+    
+    st.markdown("---")
+    
+    # Final Remarks Section
+    st.subheader("✅ Final Remarks")
+    st.success("""This project demonstrates the application of machine learning techniques to predict road accident 
+    severity in France. By analyzing historical accident data and building predictive models, we aim to provide 
+    actionable insights for improving road safety and reducing accident severity. The interactive dashboard 
+    enables stakeholders to explore the data, understand key patterns, and make data-driven decisions for 
+    traffic safety interventions.""")
+    
+    st.write("")
+    st.markdown("#### 📚 Technologies Used")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.write("- Python")
+        st.write("- Pandas")
+        st.write("- NumPy")
+    with col2:
+        st.write("- Scikit-learn")
+        st.write("- XGBoost")
+        st.write("- LightGBM")
+    with col3:
+        st.write("- Plotly")
+        st.write("- Streamlit")
+        st.write("- SHAP")
+    with col4:
+        st.write("- Jupyter")
+        st.write("- Git")
+        st.write("- VS Code")
 
 # Footer
 st.markdown("---")
