@@ -3,3 +3,8 @@
 *.csv
 *.CSV
 .vscode/
+.venv/
+.venv*/
+.venv-py312/
+.env*
+tmp_geo_check.py

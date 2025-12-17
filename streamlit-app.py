@@ -76,10 +76,11 @@ if page == "Data Mining & Visualization":
     @st.cache_data
     def load_csv_samples():
         caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
-        places = pd.read_csv('places.csv')
+        # Force all columns to string to avoid mixed-type Arrow conversion issues (e.g., 'voie')
+        places = pd.read_csv('places.csv', dtype=str, low_memory=False)
         users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
-        vehicles = pd.read_csv('vehicles.csv')
-        holidays = pd.read_csv('holidays.csv')
+        vehicles = pd.read_csv('vehicles.csv', low_memory=False)
+        holidays = pd.read_csv('holidays.csv', low_memory=False)
         return {
             'caracteristics': caracteristics.sample(5, random_state=42),
             'places': places.sample(5, random_state=42),
@@ -140,20 +141,309 @@ if page == "Data Mining & Visualization":
     
     with tab1:
         st.markdown("### ⏰ Temporal Patterns")
-        st.warning("🚧 **Coming Soon**: Visualizations showing accident trends over time, by hour, day, and month.")
-        st.write("Expected visualizations:")
-        st.write("- Accidents by hour of day")
-        st.write("- Accidents by day of week")
-        st.write("- Seasonal trends")
-        st.write("- Year-over-year comparison")
+        
+        # Load temporal data with caching
+        @st.cache_data
+        def load_temporal_data():
+            df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+            # Convert year from 2-digit to 4-digit (assuming 2000s)
+            df['year'] = df['an'].apply(lambda x: 2000 + x if x < 100 else x)
+            # Extract hour from hrmn (HHMM format)
+            df['hour'] = df['hrmn'].apply(lambda x: int(x / 100) if pd.notna(x) and x >= 0 else None)
+            # Map month numbers to month names
+            df['month_name'] = df['mois'].map({
+                1: 'January', 2: 'February', 3: 'March', 4: 'April',
+                5: 'May', 6: 'June', 7: 'July', 8: 'August',
+                9: 'September', 10: 'October', 11: 'November', 12: 'December'
+            })
+            # Create date column and extract day of week
+            df['date'] = pd.to_datetime(df[['year', 'mois', 'jour']].rename(columns={'mois': 'month', 'jour': 'day'}), errors='coerce')
+            df['day_of_week'] = df['date'].dt.day_name()
+            df['day_of_week_num'] = df['date'].dt.dayofweek  # 0=Monday, 6=Sunday
+            return df
+        
+        try:
+            df_temporal = load_temporal_data()
+            
+            # 1. Accidents by Year
+            st.markdown("#### 📅 Accidents Over the Years")
+            accidents_by_year = df_temporal.groupby('year').size().reset_index(name='count')
+            fig_year = px.bar(
+                accidents_by_year,
+                x='year',
+                y='count',
+                title='Number of Accidents by Year',
+                labels={'year': 'Year', 'count': 'Number of Accidents'},
+                color='count',
+                color_continuous_scale='Reds'
+            )
+            fig_year.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_year, use_container_width=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 2. Accidents by Month
+                st.markdown("#### 📊 Accidents by Month")
+                accidents_by_month = df_temporal.groupby(['mois', 'month_name']).size().reset_index(name='count')
+                accidents_by_month = accidents_by_month.sort_values('mois')
+                fig_month = px.bar(
+                    accidents_by_month,
+                    x='month_name',
+                    y='count',
+                    title='Number of Accidents by Month',
+                    labels={'month_name': 'Month', 'count': 'Number of Accidents'},
+                    color='count',
+                    color_continuous_scale='Blues'
+                )
+                fig_month.update_layout(showlegend=False, height=400)
+                fig_month.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_month, use_container_width=True)
+            
+            with col2:
+                # 3. Accidents by Day of Week
+                st.markdown("#### 📆 Accidents by Day of Week")
+                df_weekday = df_temporal[df_temporal['day_of_week'].notna()].copy()
+                accidents_by_weekday = df_weekday.groupby(['day_of_week_num', 'day_of_week']).size().reset_index(name='count')
+                accidents_by_weekday = accidents_by_weekday.sort_values('day_of_week_num')
+                fig_weekday = px.bar(
+                    accidents_by_weekday,
+                    x='day_of_week',
+                    y='count',
+                    title='Number of Accidents by Day of Week',
+                    labels={'day_of_week': 'Day of Week', 'count': 'Number of Accidents'},
+                    color='count',
+                    color_continuous_scale='Oranges'
+                )
+                fig_weekday.update_layout(showlegend=False, height=400)
+                st.plotly_chart(fig_weekday, use_container_width=True)
+            
+            # 4. Accidents by Time of Day
+            st.markdown("#### 🕐 Accidents by Time of Day")
+            df_temporal_clean = df_temporal[df_temporal['hour'].notna()].copy()
+            accidents_by_hour = df_temporal_clean.groupby('hour').size().reset_index(name='count')
+            accidents_by_hour = accidents_by_hour.sort_values('hour')
+            fig_hour = px.area(
+                accidents_by_hour,
+                x='hour',
+                y='count',
+                title='Number of Accidents by Hour of Day',
+                labels={'hour': 'Hour (24h format)', 'count': 'Number of Accidents'}
+            )
+            fig_hour.update_traces(fill='tozeroy', line_color='#2ca02c')
+            fig_hour.update_layout(height=400)
+            fig_hour.update_xaxes(dtick=2, range=[-0.5, 23.5])
+            st.plotly_chart(fig_hour, use_container_width=True)
+            
+            # Summary statistics
+            with st.expander("📊 Temporal Statistics Summary"):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Accidents", f"{len(df_temporal):,}")
+                with col2:
+                    peak_hour = accidents_by_hour.loc[accidents_by_hour['count'].idxmax(), 'hour']
+                    st.metric("Peak Hour", f"{int(peak_hour):02d}:00")
+                with col3:
+                    peak_month = accidents_by_month.loc[accidents_by_month['count'].idxmax(), 'month_name']
+                    st.metric("Peak Month", peak_month)
+                with col4:
+                    peak_weekday = accidents_by_weekday.loc[accidents_by_weekday['count'].idxmax(), 'day_of_week']
+                    st.metric("Peak Weekday", peak_weekday)
+                    
+        except Exception as e:
+            st.error(f"Error loading temporal data: {str(e)}")
+            st.info("Please ensure caracteristics.csv is in the correct location.")
     
     with tab2:
         st.markdown("### 🗺️ Geographical Distribution")
-        st.warning("🚧 **Coming Soon**: Interactive maps showing accident hotspots across France.")
-        st.write("Expected visualizations:")
-        st.write("- Heat map of accident locations")
-        st.write("- Accidents by department")
-        st.write("- Urban vs rural distribution")
+        
+        # Load geographical data with caching
+        @st.cache_data
+        def load_geographical_data():
+            df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+
+            # Prepare numeric Lambert 93 coordinates
+            df['lat_num'] = pd.to_numeric(df['lat'], errors='coerce')
+            df['long_num'] = pd.to_numeric(df['long'], errors='coerce')
+            # Department as numeric (coerce to handle unexpected strings)
+            df['dep_num'] = pd.to_numeric(df['dep'], errors='coerce')
+
+            # Keep rows with valid coords and department
+            df_geo = df[
+                (df['lat_num'].notna()) & (df['long_num'].notna()) &
+                (df['lat_num'] != 0) & (df['long_num'] != 0) &
+                df['dep_num'].notna()
+            ].copy()
+
+            # Convert EPSG:2154 (Lambert93) -> EPSG:4326 (WGS84)
+            try:
+                from pyproj import Transformer
+                transformer = Transformer.from_crs(2154, 4326, always_xy=True)
+                lon_wgs, lat_wgs = transformer.transform(df_geo['long_num'].values, df_geo['lat_num'].values)
+                df_geo['longitude'] = lon_wgs
+                df_geo['latitude'] = lat_wgs
+            except Exception:
+                # Fallback: assume scaled by 1e5
+                df_geo['latitude'] = df_geo['lat_num'] / 100000
+                df_geo['longitude'] = df_geo['long_num'] / 100000
+
+            # Department code and mainland filter
+            df_geo['dept_code'] = (df_geo['dep_num'] // 10).astype(int)
+            mainland_depts = list(range(1, 20)) + list(range(21, 96))
+            df_geo = df_geo[df_geo['dept_code'].isin(mainland_depts)].copy()
+
+            # Mainland bounding box (final guardrail)
+            df_geo = df_geo[(df_geo['latitude'] >= 41.0) & (df_geo['latitude'] <= 51.5) &
+                            (df_geo['longitude'] >= -5.8) & (df_geo['longitude'] <= 9.8)].copy()
+
+            # Robust per-department outlier clipping (removes rare off-sea points)
+            def _clip_group(g: pd.DataFrame) -> pd.DataFrame:
+                if len(g) < 50:
+                    return g
+                lat_q1, lat_q99 = g['latitude'].quantile([0.005, 0.995])
+                lon_q1, lon_q99 = g['longitude'].quantile([0.005, 0.995])
+                margin_lat, margin_lon = 0.1, 0.1
+                return g[(g['latitude'] >= lat_q1 - margin_lat) & (g['latitude'] <= lat_q99 + margin_lat) &
+                         (g['longitude'] >= lon_q1 - margin_lon) & (g['longitude'] <= lon_q99 + margin_lon)]
+
+            df_geo = (
+                df_geo.groupby('dept_code', group_keys=False)
+                .apply(_clip_group, include_groups=False)
+                .reset_index(drop=True)
+            )
+
+            # Map dataset for plotting — ensure dept_code stays intact
+            df_geo_map = df_geo.copy()
+            if 'dept_code' not in df_geo_map.columns or df_geo_map['dept_code'].isna().any():
+                df_geo_map['dept_code'] = (df_geo_map['dep_num'] // 10).astype(int)
+            df_geo_map['area_type'] = df_geo_map['agg'].map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
+
+            # Full dataset for stats (all accidents in mainland depts, BEFORE geographic filtering)
+            df_all = df[df['dep_num'].notna()].copy()
+            df_all['dept_code'] = (df_all['dep_num'] // 10).astype(int)
+            df_all = df_all[df_all['dept_code'].isin(mainland_depts)].copy()
+            df_all['area_type'] = df_all['agg'].map({1: 'Rural', 2: 'Urban'})
+
+            # Map department codes to names (simplified list for mainland France)
+            dept_names = {
+                1: 'Ain', 2: 'Aisne', 3: 'Allier', 4: 'Alpes-de-Haute-Provence', 5: 'Hautes-Alpes',
+                6: 'Alpes-Maritimes', 7: 'Ardèche', 8: 'Ardennes', 9: 'Ariège', 10: 'Aube',
+                11: 'Aude', 12: 'Aveyron', 13: 'Bouches-du-Rhône', 14: 'Calvados', 15: 'Cantal',
+                16: 'Charente', 17: 'Charente-Maritime', 18: 'Cher', 19: 'Corrèze', 21: "Côte-d'Or",
+                22: "Côtes-d'Armor", 23: 'Creuse', 24: 'Dordogne', 25: 'Doubs', 26: 'Drôme',
+                27: 'Eure', 28: 'Eure-et-Loir', 29: 'Finistère', 30: 'Gard', 31: 'Haute-Garonne',
+                32: 'Gers', 33: 'Gironde', 34: 'Hérault', 35: 'Ille-et-Vilaine', 36: 'Indre',
+                37: 'Indre-et-Loire', 38: 'Isère', 39: 'Jura', 40: 'Landes', 41: 'Loir-et-Cher',
+                42: 'Loire', 43: 'Haute-Loire', 44: 'Loire-Atlantique', 45: 'Loiret', 46: 'Lot',
+                47: 'Lot-et-Garonne', 48: 'Lozère', 49: 'Maine-et-Loire', 50: 'Manche', 51: 'Marne',
+                52: 'Haute-Marne', 53: 'Mayenne', 54: 'Meurthe-et-Moselle', 55: 'Meuse', 56: 'Morbihan',
+                57: 'Moselle', 58: 'Nièvre', 59: 'Nord', 60: 'Oise', 61: 'Orne', 62: 'Pas-de-Calais',
+                63: 'Puy-de-Dôme', 64: 'Pyrénées-Atlantiques', 65: 'Hautes-Pyrénées', 66: 'Pyrénées-Orientales',
+                67: 'Bas-Rhin', 68: 'Haut-Rhin', 69: 'Rhône', 70: 'Haute-Saône', 71: 'Saône-et-Loire',
+                72: 'Sarthe', 73: 'Savoie', 74: 'Haute-Savoie', 75: 'Paris', 76: 'Seine-Maritime',
+                77: 'Seine-et-Marne', 78: 'Yvelines', 79: 'Deux-Sèvres', 80: 'Somme', 81: 'Tarn',
+                82: 'Tarn-et-Garonne', 83: 'Var', 84: 'Vaucluse', 85: 'Vendée', 86: 'Vienne',
+                87: 'Haute-Vienne', 88: 'Vosges', 89: 'Yonne', 90: 'Territoire de Belfort', 91: 'Essonne',
+                92: 'Hauts-de-Seine', 93: 'Seine-Saint-Denis', 94: 'Val-de-Marne', 95: "Val-d'Oise"
+            }
+            df_geo_map['dept_name'] = df_geo_map['dept_code'].map(dept_names)
+            df_all['dept_name'] = df_all['dept_code'].map(dept_names)
+            
+            return df_geo_map, df_all
+        
+        try:
+            df_geo, df_all = load_geographical_data()
+            
+            st.info(f"📍 Showing {len(df_geo):,} accidents with valid coordinates on map (from {len(df_all):,} total mainland accidents)")
+            
+            # Sample data for better performance on map (show 10,000 points)
+            sample_size = min(10000, len(df_geo))
+            df_map = df_geo.sample(n=sample_size, random_state=42)
+            
+            # Sort so urban points (red) are drawn last and appear on top
+            if 'area_type' in df_map.columns:
+                df_map['area_type'] = pd.Categorical(
+                    df_map['area_type'], categories=['Rural', 'Urban', 'Unknown'], ordered=True
+                )
+                df_map = df_map.sort_values('area_type', na_position='first')  # Rural first, Urban last
+            
+            # 1. Interactive Map with Urban/Rural distinction
+            st.markdown("#### 🗺️ Accident Distribution Map (Sample of 10,000 accidents)")
+            
+            fig_map = px.scatter_mapbox(
+                df_map,
+                lat='latitude',
+                lon='longitude',
+                color='area_type',
+                hover_data={'dept_name': True, 'dept_code': True, 'latitude': False, 'longitude': False},
+                color_discrete_map={'Urban': '#e74c3c', 'Rural': '#3498db'},
+                title='Accident Locations: Urban vs Rural',
+                zoom=5,
+                height=600
+            )
+            fig_map.update_traces(marker=dict(size=8))
+            fig_map.update_layout(
+                mapbox_style="open-street-map",
+                mapbox_center={"lat": 46.8, "lon": 2.5}
+            )
+            st.plotly_chart(fig_map, use_container_width=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 2. Top Departments by Accident Count (using ALL accidents)
+                st.markdown("#### 📊 Top 20 Departments by Accident Count")
+                dept_counts = df_all.groupby(['dept_code', 'dept_name']).size().reset_index(name='count')
+                dept_counts = dept_counts.sort_values('count', ascending=False).head(20)
+                
+                fig_dept = px.bar(
+                    dept_counts,
+                    x='count',
+                    y='dept_name',
+                    orientation='h',
+                    title='Accidents by Department (Top 20)',
+                    labels={'dept_name': 'Department', 'count': 'Number of Accidents'},
+                    color='count',
+                    color_continuous_scale='Reds'
+                )
+                fig_dept.update_layout(showlegend=False, height=500, yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig_dept, use_container_width=True)
+            
+            with col2:
+                # 3. Urban vs Rural Distribution (using ALL accidents)
+                st.markdown("#### 🏙️ Urban vs Rural Accident Distribution")
+                urban_rural_counts = df_all.groupby('area_type').size().reset_index(name='count')
+                
+                fig_urban_rural = px.pie(
+                    urban_rural_counts,
+                    values='count',
+                    names='area_type',
+                    title='Proportion of Accidents by Area Type',
+                    color='area_type',
+                    color_discrete_map={'Urban': '#e74c3c', 'Rural': '#3498db'}
+                )
+                fig_urban_rural.update_traces(textposition='inside', textinfo='percent+label')
+                fig_urban_rural.update_layout(height=500)
+                st.plotly_chart(fig_urban_rural, use_container_width=True)
+            
+            # Summary statistics (using ALL accidents)
+            with st.expander("📊 Geographical Statistics Summary"):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Accidents", f"{len(df_all):,}")
+                with col2:
+                    top_dept = dept_counts.iloc[0]
+                    st.metric("Top Department", f"{top_dept['dept_name']}")
+                with col3:
+                    urban_pct = (df_all['area_type'] == 'Urban').sum() / len(df_all) * 100
+                    st.metric("Urban Accidents", f"{urban_pct:.1f}%")
+                with col4:
+                    rural_pct = (df_all['area_type'] == 'Rural').sum() / len(df_all) * 100
+                    st.metric("Rural Accidents", f"{rural_pct:.1f}%")
+                    
+        except Exception as e:
+            st.error(f"Error loading geographical data: {str(e)}")
+            st.info("Please ensure caracteristics.csv is in the correct location.")
     
     with tab3:
         st.markdown("### 📊 Feature Distributions")
