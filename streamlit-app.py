@@ -61,7 +61,7 @@ if page == "Data Mining & Visualization":
     st.subheader("🔍 Data Overview")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Records", "839.985", help="Total number of accident records")
+        st.metric("Total Records", "839,985", help="Total number of accident records")
     with col2:
         st.metric("Features", "52", help="Number of features in dataset")
     with col3:
@@ -270,6 +270,76 @@ if page == "Data Mining & Visualization":
             fig_hour.update_layout(height=400)
             fig_hour.update_xaxes(dtick=2, range=[-0.5, 23.5])
             st.plotly_chart(fig_hour, use_container_width=True)
+            
+            # 5. Accidents on Holidays vs Regular Days
+            st.markdown("#### 🎉 Accident Likelihood: Holidays vs Regular Weekdays")
+            
+            # Load and merge holiday data
+            try:
+                holidays_df = pd.read_csv('holidays.csv', encoding='latin-1')
+                holidays_df['ds'] = pd.to_datetime(holidays_df['ds'], errors='coerce')
+                holidays_df['is_holiday'] = True
+                
+                # Merge with temporal data
+                df_with_holidays = df_temporal.merge(
+                    holidays_df[['ds', 'is_holiday']], 
+                    left_on='date', 
+                    right_on='ds', 
+                    how='left'
+                )
+                df_with_holidays['is_holiday'] = df_with_holidays['is_holiday'].fillna(False)
+                
+                # Filter to weekdays only (exclude weekends for fair comparison)
+                df_weekdays_only = df_with_holidays[df_with_holidays['day_of_week_num'].isin([0, 1, 2, 3, 4])].copy()
+                
+                # Calculate statistics
+                import numpy as np
+                holiday_stats = df_weekdays_only.groupby('is_holiday').agg(
+                    total_accidents=('date', 'count'),
+                    unique_days=('date', 'nunique')
+                ).reset_index()
+                # Force recalculation with explicit Python division
+                holiday_stats['avg_accidents_per_day'] = holiday_stats.apply(
+                    lambda row: float(row['total_accidents']) / float(row['unique_days']), axis=1
+                )
+                holiday_stats['day_type'] = holiday_stats['is_holiday'].map({True: 'Holidays', False: 'Regular Weekdays'})
+                
+                # Create comparison chart
+                fig_holiday = px.bar(
+                    holiday_stats,
+                    x='day_type',
+                    y='avg_accidents_per_day',
+                    title='Average Daily Accidents: Holidays vs Regular Weekdays',
+                    labels={'day_type': 'Day Type', 'avg_accidents_per_day': 'Avg Accidents per Day'},
+                    color='day_type',
+                    color_discrete_map={'Holidays': '#e74c3c', 'Regular Weekdays': '#3498db'},
+                    text='avg_accidents_per_day'
+                )
+                fig_holiday.update_traces(texttemplate='%{text:.2f}', textposition='outside', width=0.4)
+                fig_holiday.update_layout(showlegend=False, height=450, margin=dict(t=80, b=40))
+                st.plotly_chart(fig_holiday, use_container_width=True)
+                
+                # Show detailed statistics
+                col1, col2 = st.columns(2)
+                with col1:
+                    regular_row = holiday_stats[holiday_stats['is_holiday'] == False].iloc[0]
+                    regular_avg = float(regular_row['total_accidents']) / float(regular_row['unique_days'])
+                    st.metric("Avg Accidents (Regular Weekdays)", f"{regular_avg:.0f}")
+                with col2:
+                    holiday_row = holiday_stats[holiday_stats['is_holiday'] == True].iloc[0]
+                    holiday_avg = float(holiday_row['total_accidents']) / float(holiday_row['unique_days'])
+                    pct_diff = ((holiday_avg - regular_avg) / regular_avg) * 100.0
+                    st.metric(
+                        "Avg Accidents (Holidays)", 
+                        f"{holiday_avg:.0f}",
+                        delta=f"{pct_diff:+.2f}%",
+                        delta_color="inverse"
+                    )
+                
+                st.caption("📊 Comparison limited to weekdays only (Mon-Fri) to ensure fair comparison")
+                
+            except Exception as e:
+                st.warning(f"Could not load holiday data: {str(e)}")
             
             # Summary statistics
             with st.expander("📊 Temporal Statistics Summary"):
@@ -483,11 +553,14 @@ if page == "Data Mining & Visualization":
                     top_dept = dept_counts.iloc[0]
                     st.metric("Top Department", f"{top_dept['dept_name']}")
                 with col3:
-                    urban_pct = (df_all['area_type'] == 'Urban').sum() / len(df_all) * 100
-                    st.metric("Urban Accidents", f"{urban_pct:.1f}%")
+                    urban_count = (df_all['area_type'] == 'Urban').sum()
+                    total_count = len(df_all)
+                    urban_pct = (urban_count * 100.0) / total_count
+                    st.metric("Urban Accidents", f"{urban_pct:.2f}%")
                 with col4:
-                    rural_pct = (df_all['area_type'] == 'Rural').sum() / len(df_all) * 100
-                    st.metric("Rural Accidents", f"{rural_pct:.1f}%")
+                    rural_count = (df_all['area_type'] == 'Rural').sum()
+                    rural_pct = (rural_count * 100.0) / total_count
+                    st.metric("Rural Accidents", f"{rural_pct:.2f}%")
                     
         except Exception as e:
             st.error(f"Error loading geographical data: {str(e)}")
