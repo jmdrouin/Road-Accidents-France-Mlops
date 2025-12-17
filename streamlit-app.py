@@ -195,7 +195,7 @@ if page == "Data Mining & Visualization":
             )
             # Extract day name and weekday index without using .dt (for strict type-checkers)
             df['day_of_week'] = df['date'].apply(lambda d: d.strftime('%A') if pd.notna(d) else pd.NA)
-            df['day_of_week_num'] = df['date'].apply(lambda d: d.weekday if pd.notna(d) else pd.NA)
+            df['day_of_week_num'] = df['date'].apply(lambda d: d.weekday() if pd.notna(d) else pd.NA)
             return df
         
         try:
