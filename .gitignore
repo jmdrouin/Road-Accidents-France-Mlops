@@ -6,5 +6,6 @@
 .venv/
 .venv*/
 .venv-py312/
+.conda/
 .env*
 tmp_geo_check.py

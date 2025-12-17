@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
+# plotly.graph_objects not used currently
 
 # Page configuration
 st.set_page_config(
@@ -79,8 +79,9 @@ if page == "Data Mining & Visualization":
         # Force all columns to string to avoid mixed-type Arrow conversion issues (e.g., 'voie')
         places = pd.read_csv('places.csv', dtype=str, low_memory=False)
         users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
-        vehicles = pd.read_csv('vehicles.csv', low_memory=False)
-        holidays = pd.read_csv('holidays.csv', low_memory=False)
+        # Ensure encoding to avoid surprises on Windows locales
+        vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
+        holidays = pd.read_csv('holidays.csv', encoding='latin-1', low_memory=False)
         return {
             'caracteristics': caracteristics.sample(5, random_state=42),
             'places': places.sample(5, random_state=42),
@@ -146,20 +147,55 @@ if page == "Data Mining & Visualization":
         @st.cache_data
         def load_temporal_data():
             df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
-            # Convert year from 2-digit to 4-digit (assuming 2000s)
-            df['year'] = df['an'].apply(lambda x: 2000 + x if x < 100 else x)
-            # Extract hour from hrmn (HHMM format)
-            df['hour'] = df['hrmn'].apply(lambda x: int(x / 100) if pd.notna(x) and x >= 0 else None)
+            # Convert key temporal columns to numeric safely
+            for _col in ['an', 'hrmn', 'mois', 'jour']:
+                if _col in df.columns:
+                    df[_col] = pd.to_numeric(df[_col], errors='coerce')
+                else:
+                    df[_col] = pd.NA
+
+            # Convert year from 2-digit to 4-digit (assuming 2000s) where appropriate
+            def _fix_year(x):
+                if pd.isna(x):
+                    return x
+                try:
+                    x = int(x)
+                except Exception:
+                    return pd.NA
+                return 2000 + x if x < 100 else x
+
+            df['year'] = df['an'].apply(_fix_year)
+
+            # Extract hour from hrmn (HHMM format) safely
+            def _extract_hour(x):
+                if pd.isna(x):
+                    return pd.NA
+                try:
+                    x = int(x)
+                except Exception:
+                    return pd.NA
+                if x < 0:
+                    return pd.NA
+                return int(x // 100)
+
+            df['hour'] = df['hrmn'].apply(_extract_hour)
+
             # Map month numbers to month names
-            df['month_name'] = df['mois'].map({
+            month_map = {
                 1: 'January', 2: 'February', 3: 'March', 4: 'April',
                 5: 'May', 6: 'June', 7: 'July', 8: 'August',
                 9: 'September', 10: 'October', 11: 'November', 12: 'December'
-            })
-            # Create date column and extract day of week
-            df['date'] = pd.to_datetime(df[['year', 'mois', 'jour']].rename(columns={'mois': 'month', 'jour': 'day'}), errors='coerce')
-            df['day_of_week'] = df['date'].dt.day_name()
-            df['day_of_week_num'] = df['date'].dt.dayofweek  # 0=Monday, 6=Sunday
+            }
+            df['month_name'] = df['mois'].map(month_map)
+
+            # Create date column and extract day of week (coerce invalids)
+            df['date'] = pd.to_datetime(
+                df[['year', 'mois', 'jour']].rename({'mois': 'month', 'jour': 'day'}, axis=1),
+                errors='coerce'
+            )
+            # Extract day name and weekday index without using .dt (for strict type-checkers)
+            df['day_of_week'] = df['date'].apply(lambda d: d.strftime('%A') if pd.notna(d) else pd.NA)
+            df['day_of_week_num'] = df['date'].apply(lambda d: d.weekday if pd.notna(d) else pd.NA)
             return df
         
         try:
@@ -241,14 +277,23 @@ if page == "Data Mining & Visualization":
                 with col1:
                     st.metric("Total Accidents", f"{len(df_temporal):,}")
                 with col2:
-                    peak_hour = accidents_by_hour.loc[accidents_by_hour['count'].idxmax(), 'hour']
-                    st.metric("Peak Hour", f"{int(peak_hour):02d}:00")
+                    if len(accidents_by_hour) > 0:
+                        peak_hour_val = int(accidents_by_hour.sort_values('count', ascending=False)['hour'].iloc[0])
+                        st.metric("Peak Hour", f"{peak_hour_val:02d}:00")
+                    else:
+                        st.metric("Peak Hour", "N/A")
                 with col3:
-                    peak_month = accidents_by_month.loc[accidents_by_month['count'].idxmax(), 'month_name']
-                    st.metric("Peak Month", peak_month)
+                    if len(accidents_by_month) > 0:
+                        peak_month = accidents_by_month.sort_values('count', ascending=False)['month_name'].iloc[0]
+                        st.metric("Peak Month", str(peak_month))
+                    else:
+                        st.metric("Peak Month", "N/A")
                 with col4:
-                    peak_weekday = accidents_by_weekday.loc[accidents_by_weekday['count'].idxmax(), 'day_of_week']
-                    st.metric("Peak Weekday", peak_weekday)
+                    if len(accidents_by_weekday) > 0:
+                        peak_weekday = accidents_by_weekday.sort_values('count', ascending=False)['day_of_week'].iloc[0]
+                        st.metric("Peak Weekday", str(peak_weekday))
+                    else:
+                        st.metric("Peak Weekday", "N/A")
                     
         except Exception as e:
             st.error(f"Error loading temporal data: {str(e)}")
@@ -278,7 +323,7 @@ if page == "Data Mining & Visualization":
             # Convert EPSG:2154 (Lambert93) -> EPSG:4326 (WGS84)
             try:
                 from pyproj import Transformer
-                transformer = Transformer.from_crs(2154, 4326, always_xy=True)
+                transformer = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
                 lon_wgs, lat_wgs = transformer.transform(df_geo['long_num'].values, df_geo['lat_num'].values)
                 df_geo['longitude'] = lon_wgs
                 df_geo['latitude'] = lat_wgs
@@ -308,7 +353,7 @@ if page == "Data Mining & Visualization":
 
             df_geo = (
                 df_geo.groupby('dept_code', group_keys=False)
-                .apply(_clip_group, include_groups=False)
+                .apply(_clip_group)
                 .reset_index(drop=True)
             )
 
@@ -316,13 +361,16 @@ if page == "Data Mining & Visualization":
             df_geo_map = df_geo.copy()
             if 'dept_code' not in df_geo_map.columns or df_geo_map['dept_code'].isna().any():
                 df_geo_map['dept_code'] = (df_geo_map['dep_num'] // 10).astype(int)
-            df_geo_map['area_type'] = df_geo_map['agg'].map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
+            # 'agg' may not exist in all datasets; use safe access
+            agg_series = df_geo_map.get('agg', pd.Series(index=df_geo_map.index))
+            df_geo_map['area_type'] = agg_series.map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
 
             # Full dataset for stats (all accidents in mainland depts, BEFORE geographic filtering)
             df_all = df[df['dep_num'].notna()].copy()
             df_all['dept_code'] = (df_all['dep_num'] // 10).astype(int)
             df_all = df_all[df_all['dept_code'].isin(mainland_depts)].copy()
-            df_all['area_type'] = df_all['agg'].map({1: 'Rural', 2: 'Urban'})
+            agg_all = df_all.get('agg', pd.Series(index=df_all.index))
+            df_all['area_type'] = agg_all.map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
 
             # Map department codes to names (simplified list for mainland France)
             dept_names = {
