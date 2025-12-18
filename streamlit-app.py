@@ -59,14 +59,16 @@ if page == "Data Mining & Visualization":
     
     # Data Overview Section
     st.subheader("🔍 Data Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Accidents", "839,985", help="Number of recorded accidents")
     with col2:
         st.metric("Persons involved", "1,876,005", help="Number of road users in dataset")
     with col3:
-        st.metric("Features", "51", help="Number of features in dataset")
+        st.metric("Vehicles involved", "1,433,390", help="Number of vehicles involved")
     with col4:
+        st.metric("Features", "51", help="Number of features in dataset")
+    with col5:
         st.metric("Time Period", "2005 to 2016", help="Data collection period")
     
     st.markdown("---")
@@ -550,7 +552,7 @@ if page == "Data Mining & Visualization":
             with st.expander("📊 Geographical Statistics Summary"):
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Total Accidents", f"{len(df_all):,}")
+                    st.metric("Located Accidents", f"{len(df_all):,}", help="Total accidents in mainland France with valid department")
                 with col2:
                     top_dept = dept_counts.iloc[0]
                     st.metric("Top Department", f"{top_dept['dept_name']}")
