@@ -8,4 +8,5 @@
 .venv-py312/
 .conda/
 .env*
+test.ipynb
 tmp_geo_check.py
