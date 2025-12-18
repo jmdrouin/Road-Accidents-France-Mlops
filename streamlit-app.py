@@ -63,7 +63,7 @@ if page == "Data Mining & Visualization":
     with col1:
         st.metric("Total Records", "839,985", help="Total number of accident records")
     with col2:
-        st.metric("Features", "52", help="Number of features in dataset")
+        st.metric("Features", "51", help="Number of features in dataset")
     with col3:
         st.metric("Time Period", "2005 to 2016", help="Data collection period")
     
@@ -272,7 +272,7 @@ if page == "Data Mining & Visualization":
             st.plotly_chart(fig_hour, use_container_width=True)
             
             # 5. Accidents on Holidays vs Regular Days
-            st.markdown("#### 🎉 Accident Likelihood: Holidays vs Regular Weekdays")
+            st.markdown("#### 🎄 Accident Likelihood: Holidays vs Regular Weekdays")
             
             # Load and merge holiday data
             try:
@@ -568,21 +568,505 @@ if page == "Data Mining & Visualization":
     
     with tab3:
         st.markdown("### 📊 Feature Distributions")
-        st.warning("🚧 **Coming Soon**: Distribution plots for key features.")
-        st.write("Expected visualizations:")
-        st.write("- Road type distribution")
-        st.write("- Weather conditions")
-        st.write("- Lighting conditions")
-        st.write("- Vehicle types involved")
+        
+        # Load feature data with caching
+        @st.cache_data
+        def load_feature_data():
+            # Load main datasets
+            caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+            places = pd.read_csv('places.csv', dtype=str, low_memory=False)
+            users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+            vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
+            
+            # Convert Num_Acc to string in all dataframes for consistent merging
+            caracteristics['Num_Acc'] = caracteristics['Num_Acc'].astype(str)
+            users['Num_Acc'] = users['Num_Acc'].astype(str)
+            vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
+            # places already loaded with dtype=str
+            
+            # Convert num_veh to string for consistent merging
+            if 'num_veh' in vehicles.columns:
+                vehicles['num_veh'] = vehicles['num_veh'].astype(str)
+            
+            # Merge datasets
+            df = caracteristics.merge(places, on='Num_Acc', how='left')
+            df = df.merge(users, on='Num_Acc', how='left')
+            df = df.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
+            
+            # Define label mappings for categorical features
+            lighting_map = {
+                1: 'Daylight', 2: 'Dusk/Dawn', 3: 'Night_with_lights',
+                4: 'Night_no_lights', 5: 'Night_lights_off'
+            }
+            
+            weather_map = {
+                1: 'Normal', 2: 'Light_rain', 3: 'Heavy_rain', 4: 'Snow/Hail',
+                5: 'Fog/Smoke', 6: 'Strong_wind', 7: 'Dazzling', 8: 'Cloudy', 9: 'Other'
+            }
+            
+            road_category_map = {
+                1: 'Highway', 2: 'National_road', 3: 'Departmental_road',
+                4: 'Communal_road', 5: 'Off_public_road', 6: 'Parking', 9: 'Other'
+            }
+            
+            collision_map = {
+                1: 'Two_vehicles_front', 2: 'Two_vehicles_rear', 3: 'Two_vehicles_side',
+                4: 'Chain_collision', 5: 'Multiple_collisions', 6: 'Other_collision',
+                7: 'No_collision'
+            }
+            
+            vehicle_category_map = {
+                1: 'Bicycle', 2: 'Moped', 3: 'Cart', 7: 'Light_vehicle', 10: 'Utility_vehicle',
+                13: 'Heavy_truck', 14: 'Tractor', 15: 'Special_vehicle', 16: 'Agricultural',
+                17: 'Motorcycle_50-125cc', 20: 'Special_utility', 21: 'Motorcycle_over_125cc',
+                30: 'Scooter_50-125cc', 31: 'Motorcycle_50-125cc', 32: 'Motorcycle_125-500cc',
+                33: 'Motorcycle_over_500cc', 34: 'Scooter_over_125cc', 35: 'Quad_light',
+                36: 'Quad_heavy', 37: 'Bus', 38: 'Coach', 39: 'Train', 40: 'Tram', 99: 'Other'
+            }
+            
+            surface_condition_map = {
+                1: 'Normal', 2: 'Wet', 3: 'Puddles', 4: 'Flooded',
+                5: 'Snow', 6: 'Mud', 7: 'Ice', 8: 'Oil', 9: 'Other'
+            }
+            
+            # Apply mappings
+            df['lighting_label'] = pd.to_numeric(df['lum'], errors='coerce').map(lighting_map).fillna('Unknown')
+            df['weather_label'] = pd.to_numeric(df['atm'], errors='coerce').map(weather_map).fillna('Unknown')
+            df['road_category_label'] = pd.to_numeric(df['catr'], errors='coerce').map(road_category_map).fillna('Unknown')
+            df['collision_label'] = pd.to_numeric(df['col'], errors='coerce').map(collision_map).fillna('Unknown')
+            df['vehicle_category_label'] = pd.to_numeric(df['catv'], errors='coerce').map(vehicle_category_map).fillna('Unknown')
+            df['surface_condition_label'] = pd.to_numeric(df['surf'], errors='coerce').map(surface_condition_map).fillna('Unknown')
+            df['urban_label'] = pd.to_numeric(df['agg'], errors='coerce').map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
+            
+            return df
+        
+        try:
+            df_features = load_feature_data()
+            
+            st.info(f"📊 Analyzing {len(df_features):,} accident records")
+            
+            # Create two columns for side-by-side charts
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # 1. Lighting Conditions Distribution
+                st.markdown("#### 💡 Lighting Conditions")
+                lighting_counts = df_features['lighting_label'].value_counts().reset_index()
+                lighting_counts.columns = ['Lighting', 'Count']
+                
+                fig_lighting = px.bar(
+                    lighting_counts.head(8),
+                    x='Lighting',
+                    y='Count',
+                    title='Distribution of Lighting Conditions',
+                    labels={'Lighting': 'Lighting Condition', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Viridis'
+                )
+                fig_lighting.update_layout(showlegend=False, height=350)
+                fig_lighting.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_lighting, use_container_width=True)
+                
+                # 2. Weather Conditions Distribution
+                st.markdown("#### 🌤️ Weather Conditions")
+                weather_counts = df_features['weather_label'].value_counts().reset_index()
+                weather_counts.columns = ['Weather', 'Count']
+                
+                fig_weather = px.bar(
+                    weather_counts.head(8),
+                    x='Weather',
+                    y='Count',
+                    title='Distribution of Weather Conditions',
+                    labels={'Weather': 'Weather Condition', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Blues'
+                )
+                fig_weather.update_layout(showlegend=False, height=350)
+                fig_weather.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_weather, use_container_width=True)
+                
+                # 3. Surface Conditions Distribution
+                st.markdown("#### 🛣️ Road Surface Conditions")
+                surface_counts = df_features['surface_condition_label'].value_counts().reset_index()
+                surface_counts.columns = ['Surface', 'Count']
+                
+                fig_surface = px.bar(
+                    surface_counts.head(8),
+                    x='Surface',
+                    y='Count',
+                    title='Distribution of Road Surface Conditions',
+                    labels={'Surface': 'Surface Condition', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Oranges'
+                )
+                fig_surface.update_layout(showlegend=False, height=350)
+                fig_surface.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_surface, use_container_width=True)
+            
+            with col2:
+                # 4. Road Category Distribution
+                st.markdown("#### 🛤️ Road Types")
+                road_counts = df_features['road_category_label'].value_counts().reset_index()
+                road_counts.columns = ['Road_Type', 'Count']
+                
+                fig_road = px.bar(
+                    road_counts.head(7),
+                    x='Count',
+                    y='Road_Type',
+                    orientation='h',
+                    title='Distribution by Road Type',
+                    labels={'Road_Type': 'Road Type', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Greens'
+                )
+                fig_road.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig_road, use_container_width=True)
+                
+                # 5. Collision Type Distribution
+                st.markdown("#### 💥 Collision Types")
+                collision_counts = df_features['collision_label'].value_counts().reset_index()
+                collision_counts.columns = ['Collision_Type', 'Count']
+                
+                fig_collision = px.bar(
+                    collision_counts.head(7),
+                    x='Count',
+                    y='Collision_Type',
+                    orientation='h',
+                    title='Distribution by Collision Type',
+                    labels={'Collision_Type': 'Collision Type', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Purples'
+                )
+                fig_collision.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig_collision, use_container_width=True)
+                
+                # 6. Vehicle Category Distribution (Top 10)
+                st.markdown("#### 🚗 Vehicle Types (Top 10)")
+                vehicle_counts = df_features['vehicle_category_label'].value_counts().reset_index()
+                vehicle_counts.columns = ['Vehicle_Type', 'Count']
+                
+                fig_vehicle = px.bar(
+                    vehicle_counts.head(10),
+                    x='Count',
+                    y='Vehicle_Type',
+                    orientation='h',
+                    title='Top 10 Vehicle Types Involved',
+                    labels={'Vehicle_Type': 'Vehicle Type', 'Count': 'Number of Accidents'},
+                    color='Count',
+                    color_continuous_scale='Reds'
+                )
+                fig_vehicle.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
+                st.plotly_chart(fig_vehicle, use_container_width=True)
+            
+            # Summary statistics in an expander
+            with st.expander("📊 Feature Distribution Summary"):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    daylight_pct = (df_features['lighting_label'] == 'Daylight').sum() / len(df_features) * 100
+                    st.metric("Daylight Accidents", f"{daylight_pct:.1f}%")
+                with col2:
+                    normal_weather_pct = (df_features['weather_label'] == 'Normal').sum() / len(df_features) * 100
+                    st.metric("Normal Weather", f"{normal_weather_pct:.1f}%")
+                with col3:
+                    urban_pct = (df_features['urban_label'] == 'Urban').sum() / len(df_features) * 100
+                    st.metric("Urban Accidents", f"{urban_pct:.1f}%")
+                with col4:
+                    normal_surface_pct = (df_features['surface_condition_label'] == 'Normal').sum() / len(df_features) * 100
+                    st.metric("Normal Surface", f"{normal_surface_pct:.1f}%")
+        
+        except Exception as e:
+            st.error(f"Error loading feature data: {str(e)}")
+            st.info("Please ensure all CSV files are in the correct location.")
     
     with tab4:
         st.markdown("### ⚠️ Severity Analysis")
-        st.warning("🚧 **Coming Soon**: Analysis of accident severity patterns.")
-        st.write("Expected visualizations:")
-        st.write("- Severity distribution")
-        st.write("- Severity by time of day")
-        st.write("- Severity by road type")
-        st.write("- Severity correlation with weather")
+        
+        # Load severity data with caching
+        @st.cache_data
+        def load_severity_data():
+            # Load datasets
+            caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+            places = pd.read_csv('places.csv', dtype=str, low_memory=False)
+            users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+            vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
+            
+            # Convert Num_Acc to string in all dataframes for consistent merging
+            caracteristics['Num_Acc'] = caracteristics['Num_Acc'].astype(str)
+            users['Num_Acc'] = users['Num_Acc'].astype(str)
+            vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
+            # places already loaded with dtype=str
+            
+            # Convert num_veh to string for consistent merging
+            if 'num_veh' in vehicles.columns:
+                vehicles['num_veh'] = vehicles['num_veh'].astype(str)
+            
+            # Merge datasets
+            df = caracteristics.merge(places, on='Num_Acc', how='left')
+            df = df.merge(users, on='Num_Acc', how='left')
+            df = df.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
+            
+            # Severity mapping (grav column in users.csv)
+            severity_map = {
+                1: 'Unscathed', 2: 'Fatal', 3: 'Hospitalized', 4: 'Light_injury'
+            }
+            df['severity'] = pd.to_numeric(df['grav'], errors='coerce').map(severity_map).fillna('Unknown')
+            
+            # Other mappings
+            lighting_map = {
+                1: 'Daylight', 2: 'Dusk/Dawn', 3: 'Night_with_lights',
+                4: 'Night_no_lights', 5: 'Night_lights_off'
+            }
+            weather_map = {
+                1: 'Normal', 2: 'Light_rain', 3: 'Heavy_rain', 4: 'Snow/Hail',
+                5: 'Fog/Smoke', 6: 'Strong_wind', 7: 'Dazzling', 8: 'Cloudy', 9: 'Other'
+            }
+            road_category_map = {
+                1: 'Highway', 2: 'National_road', 3: 'Departmental_road',
+                4: 'Communal_road', 5: 'Off_public_road', 6: 'Parking', 9: 'Other'
+            }
+            collision_map = {
+                1: 'Two_vehicles_front', 2: 'Two_vehicles_rear', 3: 'Two_vehicles_side',
+                4: 'Chain_collision', 5: 'Multiple_collisions', 6: 'Other_collision',
+                7: 'No_collision'
+            }
+            
+            df['lighting_label'] = pd.to_numeric(df['lum'], errors='coerce').map(lighting_map).fillna('Unknown')
+            df['weather_label'] = pd.to_numeric(df['atm'], errors='coerce').map(weather_map).fillna('Unknown')
+            df['road_category_label'] = pd.to_numeric(df['catr'], errors='coerce').map(road_category_map).fillna('Unknown')
+            df['collision_label'] = pd.to_numeric(df['col'], errors='coerce').map(collision_map).fillna('Unknown')
+            df['urban_label'] = pd.to_numeric(df['agg'], errors='coerce').map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
+            
+            # Extract hour from hrmn
+            df['hour'] = pd.to_numeric(df['hrmn'], errors='coerce') // 100
+            df.loc[df['hour'] > 23, 'hour'] = pd.NA
+            
+            # Numeric encoding for correlation analysis
+            df['severity_num'] = pd.to_numeric(df['grav'], errors='coerce')
+            df['lighting_num'] = pd.to_numeric(df['lum'], errors='coerce')
+            df['weather_num'] = pd.to_numeric(df['atm'], errors='coerce')
+            df['road_category_num'] = pd.to_numeric(df['catr'], errors='coerce')
+            df['collision_num'] = pd.to_numeric(df['col'], errors='coerce')
+            df['urban_num'] = pd.to_numeric(df['agg'], errors='coerce')
+            df['intersection_num'] = pd.to_numeric(df['int'], errors='coerce')
+            
+            return df
+        
+        try:
+            df_severity = load_severity_data()
+            
+            st.info(f"⚠️ Analyzing severity patterns across {len(df_severity):,} records")
+            
+            # Overall Severity Distribution
+            st.markdown("#### 📊 Overall Severity Distribution")
+            severity_counts = df_severity['severity'].value_counts().reset_index()
+            severity_counts.columns = ['Severity', 'Count']
+            
+            # Reorder severity levels
+            severity_order = ['Unscathed', 'Light_injury', 'Hospitalized', 'Fatal']
+            severity_counts['Severity'] = pd.Categorical(severity_counts['Severity'], categories=severity_order, ordered=True)
+            severity_counts = severity_counts.sort_values('Severity')
+            
+            fig_severity_dist = px.bar(
+                severity_counts,
+                x='Severity',
+                y='Count',
+                title='Distribution of Accident Severity',
+                labels={'Severity': 'Severity Level', 'Count': 'Number of Cases'},
+                color='Severity',
+                color_discrete_map={
+                    'Unscathed': '#2ecc71',
+                    'Light_injury': '#f39c12',
+                    'Hospitalized': '#e67e22',
+                    'Fatal': '#e74c3c'
+                }
+            )
+            fig_severity_dist.update_layout(showlegend=False, height=400)
+            st.plotly_chart(fig_severity_dist, use_container_width=True)
+            
+            # Show severity percentages
+            col1, col2, col3, col4 = st.columns(4)
+            total = len(df_severity[df_severity['severity'] != 'Unknown'])
+            with col1:
+                unscathed_pct = (df_severity['severity'] == 'Unscathed').sum() / total * 100
+                st.metric("Unscathed", f"{unscathed_pct:.1f}%", help="No injuries")
+            with col2:
+                light_pct = (df_severity['severity'] == 'Light_injury').sum() / total * 100
+                st.metric("Light Injury", f"{light_pct:.1f}%", help="Minor injuries")
+            with col3:
+                hosp_pct = (df_severity['severity'] == 'Hospitalized').sum() / total * 100
+                st.metric("Hospitalized", f"{hosp_pct:.1f}%", help="Serious injuries requiring hospitalization")
+            with col4:
+                fatal_pct = (df_severity['severity'] == 'Fatal').sum() / total * 100
+                st.metric("Fatal", f"{fatal_pct:.1f}%", help="Fatal accidents", delta=None, delta_color="off")
+            
+            st.markdown("---")
+            
+            # Severity by various factors
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Severity by Time of Day
+                st.markdown("#### ⏰ Severity by Hour of Day")
+                df_hour_severity = df_severity[df_severity['hour'].notna() & (df_severity['severity'] != 'Unknown')].copy()
+                hour_severity = df_hour_severity.groupby(['hour', 'severity']).size().reset_index(name='count')
+                hour_severity = hour_severity[hour_severity['severity'].isin(severity_order)]
+                
+                fig_hour_severity = px.bar(
+                    hour_severity,
+                    x='hour',
+                    y='count',
+                    color='severity',
+                    title='Accident Severity by Hour',
+                    labels={'hour': 'Hour of Day', 'count': 'Number of Cases', 'severity': 'Severity'},
+                    color_discrete_map={
+                        'Unscathed': '#2ecc71',
+                        'Light_injury': '#f39c12',
+                        'Hospitalized': '#e67e22',
+                        'Fatal': '#e74c3c'
+                    },
+                    category_orders={'severity': severity_order}
+                )
+                fig_hour_severity.update_layout(height=400)
+                st.plotly_chart(fig_hour_severity, use_container_width=True)
+                
+                # Severity by Road Type
+                st.markdown("#### 🛤️ Severity by Road Type")
+                df_road_severity = df_severity[df_severity['severity'] != 'Unknown'].copy()
+                road_severity = df_road_severity.groupby(['road_category_label', 'severity']).size().reset_index(name='count')
+                road_severity = road_severity[road_severity['severity'].isin(severity_order)]
+                top_roads = road_severity.groupby('road_category_label')['count'].sum().nlargest(5).index
+                road_severity = road_severity[road_severity['road_category_label'].isin(top_roads)]
+                
+                fig_road_severity = px.bar(
+                    road_severity,
+                    x='road_category_label',
+                    y='count',
+                    color='severity',
+                    title='Severity by Road Type (Top 5)',
+                    labels={'road_category_label': 'Road Type', 'count': 'Number of Cases', 'severity': 'Severity'},
+                    color_discrete_map={
+                        'Unscathed': '#2ecc71',
+                        'Light_injury': '#f39c12',
+                        'Hospitalized': '#e67e22',
+                        'Fatal': '#e74c3c'
+                    },
+                    category_orders={'severity': severity_order}
+                )
+                fig_road_severity.update_layout(height=400)
+                fig_road_severity.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_road_severity, use_container_width=True)
+            
+            with col2:
+                # Severity by Lighting Condition
+                st.markdown("#### 💡 Severity by Lighting")
+                lighting_severity = df_severity[df_severity['severity'] != 'Unknown'].groupby(['lighting_label', 'severity']).size().reset_index(name='count')
+                lighting_severity = lighting_severity[lighting_severity['severity'].isin(severity_order)]
+                top_lighting = lighting_severity.groupby('lighting_label')['count'].sum().nlargest(5).index
+                lighting_severity = lighting_severity[lighting_severity['lighting_label'].isin(top_lighting)]
+                
+                fig_lighting_severity = px.bar(
+                    lighting_severity,
+                    x='lighting_label',
+                    y='count',
+                    color='severity',
+                    title='Severity by Lighting Condition',
+                    labels={'lighting_label': 'Lighting', 'count': 'Number of Cases', 'severity': 'Severity'},
+                    color_discrete_map={
+                        'Unscathed': '#2ecc71',
+                        'Light_injury': '#f39c12',
+                        'Hospitalized': '#e67e22',
+                        'Fatal': '#e74c3c'
+                    },
+                    category_orders={'severity': severity_order}
+                )
+                fig_lighting_severity.update_layout(height=400)
+                fig_lighting_severity.update_xaxes(tickangle=-45)
+                st.plotly_chart(fig_lighting_severity, use_container_width=True)
+                
+                # Severity by Urban/Rural
+                st.markdown("#### 🏙️ Severity by Area Type")
+                urban_severity = df_severity[df_severity['severity'] != 'Unknown'].groupby(['urban_label', 'severity']).size().reset_index(name='count')
+                urban_severity = urban_severity[urban_severity['severity'].isin(severity_order)]
+                urban_severity = urban_severity[urban_severity['urban_label'].isin(['Urban', 'Rural'])]
+                
+                fig_urban_severity = px.bar(
+                    urban_severity,
+                    x='urban_label',
+                    y='count',
+                    color='severity',
+                    title='Severity by Urban vs Rural',
+                    labels={'urban_label': 'Area Type', 'count': 'Number of Cases', 'severity': 'Severity'},
+                    color_discrete_map={
+                        'Unscathed': '#2ecc71',
+                        'Light_injury': '#f39c12',
+                        'Hospitalized': '#e67e22',
+                        'Fatal': '#e74c3c'
+                    },
+                    category_orders={'severity': severity_order}
+                )
+                fig_urban_severity.update_layout(height=400)
+                st.plotly_chart(fig_urban_severity, use_container_width=True)
+            
+            st.markdown("---")
+            
+            # Correlation Analysis
+            st.markdown("#### 🔗 Feature Correlation with Severity")
+            
+            # Select numeric columns for correlation
+            corr_cols = ['severity_num', 'lighting_num', 'weather_num', 'road_category_num', 
+                         'collision_num', 'urban_num', 'intersection_num', 'hour']
+            df_corr = df_severity[corr_cols].dropna()
+            
+            if len(df_corr) > 0:
+                # Calculate correlation matrix
+                corr_matrix = df_corr.corr()
+                
+                # Create correlation heatmap
+                fig_corr = px.imshow(
+                    corr_matrix,
+                    labels=dict(x="Feature", y="Feature", color="Correlation"),
+                    x=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Intersection', 'Hour'],
+                    y=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Intersection', 'Hour'],
+                    color_continuous_scale='RdBu_r',
+                    aspect="auto",
+                    title='Correlation Matrix: Severity and Key Features',
+                    zmin=-1,
+                    zmax=1
+                )
+                fig_corr.update_layout(height=500)
+                st.plotly_chart(fig_corr, use_container_width=True)
+                
+                # Show top correlations with severity
+                severity_corr = corr_matrix['severity_num'].drop('severity_num').abs().sort_values(ascending=False)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Top Correlations with Severity:**")
+                    for feature, corr_value in severity_corr.head(5).items():
+                        feature_names = {
+                            'lighting_num': 'Lighting Condition',
+                            'weather_num': 'Weather',
+                            'road_category_num': 'Road Type',
+                            'collision_num': 'Collision Type',
+                            'urban_num': 'Urban/Rural',
+                            'intersection_num': 'Intersection',
+                            'hour': 'Hour of Day'
+                        }
+                        st.write(f"• **{feature_names.get(feature, feature)}**: {corr_matrix['severity_num'][feature]:.3f}")
+                
+                with col2:
+                    st.markdown("**Key Insights:**")
+                    st.write("• Positive correlation indicates higher values associated with more severe accidents")
+                    st.write("• Negative correlation indicates inverse relationship")
+                    st.write("• Values closer to ±1 indicate stronger relationships")
+                    st.write("• Correlation does not imply causation")
+            
+            else:
+                st.warning("Not enough data for correlation analysis")
+        
+        except Exception as e:
+            st.error(f"Error loading severity data: {str(e)}")
+            st.info("Please ensure all CSV files are in the correct location.")
 
 # Page 2: Pre-processing & Feature Engineering
 elif page == "Pre-processing & Feature engineering":
@@ -593,64 +1077,299 @@ elif page == "Pre-processing & Feature engineering":
     # Data Quality Section
     st.subheader("🧹 Data Quality Assessment")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info("🚧 **Work in Progress**: Missing values analysis")
-        st.write("Will display:")
-        st.write("- Missing value percentages by feature")
-        st.write("- Visualization of missing data patterns")
-        st.write("- Imputation strategies")
+    @st.cache_data
+    def load_quality_data():
+        df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+        users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+        vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
+        places = pd.read_csv('places.csv', dtype=str, low_memory=False)
+        
+        # Convert Num_Acc to string in all dataframes for consistent merging
+        df['Num_Acc'] = df['Num_Acc'].astype(str)
+        users['Num_Acc'] = users['Num_Acc'].astype(str)
+        vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
+        # places already loaded with dtype=str
+        
+        # Convert num_veh to string for consistent merging
+        if 'num_veh' in vehicles.columns:
+            vehicles['num_veh'] = vehicles['num_veh'].astype(str)
+        
+        # Merge datasets
+        df_merged = df.merge(users, on='Num_Acc', how='left')
+        df_merged = df_merged.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
+        df_merged = df_merged.merge(places, on='Num_Acc', how='left')
+        
+        return df_merged
     
-    with col2:
-        st.info("🚧 **Work in Progress**: Outlier detection")
-        st.write("Will display:")
-        st.write("- Statistical outlier identification")
-        st.write("- Box plots for numerical features")
-        st.write("- Outlier treatment strategies")
+    try:
+        df_quality = load_quality_data()
+        
+        # Overview metrics before preprocessing
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Records (Raw)", f"{len(df_quality):,}", help="Initial number of records")
+        with col2:
+            st.metric("Features (Raw)", len(df_quality.columns), help="Initial number of features")
+        with col3:
+            missing_pct = (df_quality.isna().sum().sum() / (len(df_quality) * len(df_quality.columns))) * 100
+            st.metric("Missing Data %", f"{missing_pct:.1f}%", help="Overall missing value percentage")
+        with col4:
+            duplicates = df_quality.duplicated().sum()
+            st.metric("Duplicate Rows", f"{duplicates:,}", help="Number of duplicate records")
+        
+        st.markdown("---")
+        
+        # Missing Values Analysis
+        st.markdown("#### 📊 Missing Values by Column (Top 20)")
+        
+        missing_data = (df_quality.isna().sum() / len(df_quality) * 100).sort_values(ascending=False).head(20)
+        
+        if len(missing_data) > 0:
+            missing_df = pd.DataFrame({'Feature': missing_data.index, 'Missing %': missing_data.values})
+            
+            fig_missing = px.bar(
+                missing_df,
+                x='Missing %',
+                y='Feature',
+                orientation='h',
+                title='Missing Values by Feature (Top 20)',
+                labels={'Feature': 'Feature', 'Missing %': 'Percentage Missing'},
+                color='Missing %',
+                color_continuous_scale='Reds'
+            )
+            fig_missing.update_layout(showlegend=False, height=450, yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_missing, use_container_width=True)
+        
+        st.markdown("---")
+        
+        # Data Types Distribution
+        st.markdown("#### 🔤 Data Types Distribution")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        dtype_counts = df_quality.dtypes.value_counts()
+        
+        with col1:
+            numeric_cols = (df_quality.select_dtypes(include=['int64', 'int32', 'int16', 'int8', 'float64', 'float32']).shape[1])
+            st.metric("Numeric Features", numeric_cols)
+        
+        with col2:
+            categorical_cols = (df_quality.select_dtypes(include=['object']).shape[1])
+            st.metric("Categorical Features", categorical_cols)
+        
+        with col3:
+            datetime_cols = (df_quality.select_dtypes(include=['datetime64']).shape[1])
+            st.metric("Datetime Features", datetime_cols)
+        
+        # Data type pie chart
+        dtype_labels = []
+        dtype_values = []
+        for dtype, count in dtype_counts.items():
+            dtype_labels.append(str(dtype))
+            dtype_values.append(count)
+        
+        fig_dtypes = px.pie(
+            values=dtype_values,
+            names=dtype_labels,
+            title='Distribution of Data Types',
+            hole=0.4
+        )
+        fig_dtypes.update_traces(textposition='inside', textinfo='percent+label')
+        fig_dtypes.update_layout(height=400)
+        st.plotly_chart(fig_dtypes, use_container_width=True)
+        
+    except Exception as e:
+        st.error(f"Error loading quality data: {str(e)}")
     
     st.markdown("---")
     
     # Feature Engineering Section
-    st.subheader("⚙️ Feature Engineering")
+    st.subheader("⚙️ Feature Engineering Pipeline")
     
-    tab1, tab2, tab3 = st.tabs(["New Features", "Encoding", "Scaling"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Temporal", "Safety Equipment", "Vehicle & Impact", "Road Context"])
     
     with tab1:
-        st.markdown("### 🆕 Feature Creation")
-        st.warning("🚧 **Coming Soon**: New engineered features")
-        st.write("Planned features:")
-        st.write("- **Temporal features**: Hour bins, Weekend flag, Rush hour flag")
-        st.write("- **Interaction features**: Weather × Road condition, Time × Location")
-        st.write("- **Aggregated features**: Historical accident counts by location")
-        st.write("- **Geospatial features**: Distance to city center, Road density")
+        st.markdown("### ⏰ Temporal Feature Engineering")
+        st.write("""
+        **New Engineered Features:**
+        - **date**: Combined from year, month, day columns
+        - **day_of_week**: Extracted from date (Monday-Sunday)
+        - **hour_group**: Binned hour into (Night, Morning, Afternoon, Evening)
+        - **is_weekend**: Boolean flag for weekend days
+        """)
+        
+        # Show example transformations
+        with st.expander("📋 Transformation Examples"):
+            example_data = {
+                'Original Columns': ['year=2015, month=6, day=15, hour=1430', 'year=2015, month=6, day=20, hour=0800'],
+                'date': ['2015-06-15', '2015-06-20'],
+                'day_of_week': ['Monday', 'Saturday'],
+                'hour_group': ['Afternoon', 'Morning'],
+                'is_weekend': [False, True]
+            }
+            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
     
     with tab2:
-        st.markdown("### 🔢 Categorical Encoding")
-        st.warning("🚧 **Coming Soon**: Encoding strategies for categorical variables")
-        st.write("Encoding methods:")
-        st.write("- One-Hot Encoding for nominal features")
-        st.write("- Label Encoding for ordinal features")
-        st.write("- Target Encoding for high-cardinality features")
-        st.write("- Frequency Encoding where appropriate")
+        st.markdown("### 🛡️ Safety Equipment Feature Engineering")
+        st.write("""
+        **New Engineered Flags:**
+        - **seatbelt_used**: True if Seat_belt type AND Used
+        - **helmet_used**: True if Helmet type AND Used
+        - **any_protection_used**: True if any safety equipment was used
+        - **protection_effective**: True if protection used AND not undetermined
+        """)
+        
+        with st.expander("📋 Transformation Examples"):
+            example_data = {
+                'safety_equipment_type': ['Seat_belt', 'Helmet', 'Not_used', 'Seat_belt'],
+                'safety_equipment_usage': ['Used', 'Used', 'Not_used', 'Not_used'],
+                'seatbelt_used': [True, False, False, False],
+                'helmet_used': [False, True, False, False],
+                'any_protection_used': [True, True, False, False],
+                'protection_effective': [True, True, False, False]
+            }
+            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
     
     with tab3:
-        st.markdown("### 📏 Feature Scaling")
-        st.warning("🚧 **Coming Soon**: Feature normalization and standardization")
-        st.write("Scaling techniques:")
-        st.write("- StandardScaler for normally distributed features")
-        st.write("- MinMaxScaler for bounded features")
-        st.write("- RobustScaler for features with outliers")
+        st.markdown("### 🚗 Vehicle & Impact Feature Engineering")
+        st.write("""
+        **Vehicle Grouping:**
+        - Car, Motorcycle, Bicycle, Truck, Bus, Other
+        
+        **Impact Grouping:**
+        - Front (Front, Front_left, Front_right)
+        - Rear (Rear, Rear_left, Rear_right)
+        - Side (Left_side, Right_side)
+        - Other
+        
+        **Interaction Features:**
+        - **motorcycle_side_impact**: True if Motorcycle AND Side impact
+        """)
+        
+        with st.expander("📋 Transformation Examples"):
+            example_data = {
+                'vehicle_category_label': ['Car', 'Motorcycle', 'Motorcycle', 'Truck'],
+                'impact_point_label': ['Front', 'Side', 'Front', 'Rear'],
+                'vehicle_group': ['Car', 'Motorcycle', 'Motorcycle', 'Truck'],
+                'impact_group': ['Front', 'Side', 'Front', 'Rear'],
+                'motorcycle_side_impact': [False, True, False, False]
+            }
+            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
+    
+    with tab4:
+        st.markdown("### 🛣️ Road & Accident Context Feature Engineering")
+        st.write("""
+        **New Features Created:**
+        - **is_night**: True for night conditions (with/without lighting)
+        - **is_urban**: True for built-up areas
+        - **lane_width**: Calculated as road_width / num_lanes
+        - **road_group**: Simplified categories (Highway, Major_road, Local_road)
+        - **weather_group**: Grouped weather (Clear, Rain, Snow, Fog, Other)
+        """)
+        
+        with st.expander("📋 Transformation Examples"):
+            example_data = {
+                'lighting_label': ['Daylight', 'Night_with_lights', 'Night_no_lights', 'Dusk'],
+                'urban_label': ['Built_up_area', 'Outside', 'Built_up_area', 'Outside'],
+                'road_width': [14.0, 8.5, 10.2, 7.0],
+                'num_lanes': [2, 1, 2, 1],
+                'is_night': [False, True, True, False],
+                'is_urban': [True, False, True, False],
+                'lane_width': [7.0, 8.5, 5.1, 7.0]
+            }
+            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
     
     st.markdown("---")
     
-    # Feature Selection Section
-    st.subheader("🎯 Feature Selection")
-    st.info("🚧 **Work in Progress**: Feature importance analysis and selection")
-    st.write("Methods to be applied:")
-    st.write("- Correlation analysis")
-    st.write("- Feature importance from tree-based models")
-    st.write("- Recursive Feature Elimination (RFE)")
-    st.write("- SHAP values for feature contribution")
+    # Data Cleaning Section
+    st.subheader("🧹 Data Cleaning & Column Pruning")
+    
+    with st.expander("📊 Columns Removed from Raw Dataset"):
+        removed_cols = {
+            'Category': [
+                'Redundant Temporal', 'Redundant Temporal', 'Redundant Temporal', 'Redundant Location',
+                'Redundant Location', 'Redundant Location', 'Sparse', 'Sparse', 'Sparse',
+                'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse',
+                'Skewed', 'Skewed', 'Skewed', 'Skewed'
+            ],
+            'Column': [
+                'date', 'minute', 'time_hhmm', 'longitude_num', 'latitude_num', 'valid_geo',
+                'mobile_obstacle_label', 'pedestrian_crossing_width', 'reserved_lane_label',
+                'pedestrian_location_label', 'pedestrian_action_label', 'pedestrian_state_label',
+                'birth_year', 'num_lanes', 'road_width',
+                'infrastructure_label', 'school_zone_label', 'occupants_group',
+                'situation_label', 'traffic_direction_label'
+            ],
+            'Reason': [
+                'Replaced by derived features', 'Not used in analysis', 'Replaced by hour extraction',
+                'Used for geospatial analysis only', 'Used for geospatial analysis only', 'Not needed',
+                '~99.5% sparse', '~95% sparse', '~98% sparse',
+                'Mostly "Not_pedestrian"', 'Mostly "Not_pedestrian"', 'Mostly "Not_pedestrian"',
+                'Replaced by age + age_group', 'Captured in lane_width', 'Captured in lane_width',
+                '~89% Unknown', '~39% Unknown', '~99% zeros',
+                '~89% "On_road"', '~92% same direction'
+            ]
+        }
+        st.dataframe(pd.DataFrame(removed_cols), use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Dataset Transformation Summary
+    st.subheader("📈 Dataset Transformation Summary")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### Raw Dataset")
+        st.write("""
+        - **Records**: 839,985
+        - **Features**: 16 (raw columns)
+        - **Missing Data**: ~15-20% average
+        """)
+    
+    with col2:
+        st.markdown("#### Processed Dataset")
+        st.write("""
+        - **Records**: 839,985
+        - **Features**: ~35 (after engineering & pruning)
+        - **Missing Data**: Reduced through imputation
+        - **Quality**: Improved with derived features
+        """)
+    
+    # Transformation steps visualization
+    steps = ['Raw Data\n(16 features)', 'Feature\nEngineering\n(+20 features)', 
+             'Remove\nRedundant\n(-10 features)', 'Final Dataset\n(~35 features)']
+    feature_counts = [16, 36, 26, 35]
+    
+    fig_transform = px.bar(
+        x=steps,
+        y=feature_counts,
+        title='Feature Count Through Processing Pipeline',
+        labels={'x': 'Stage', 'y': 'Number of Features'},
+        color=feature_counts,
+        color_continuous_scale='Blues',
+        text=feature_counts
+    )
+    fig_transform.update_traces(textposition='outside')
+    fig_transform.update_layout(showlegend=False, height=350)
+    st.plotly_chart(fig_transform, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Output Section
+    st.subheader("💾 Final Output")
+    
+    st.info("""
+    **Master Dataset Export**: `master_acc.csv`
+    
+    Contains all processed and engineered features ready for machine learning modeling.
+    Includes:
+    - ✅ All temporal engineered features
+    - ✅ All safety equipment flags
+    - ✅ Vehicle and impact groupings
+    - ✅ Road context and weather features
+    - ✅ Target variable: injury_severity_label
+    """)
 
 # Page 3: Modelling
 elif page == "Modelling":
