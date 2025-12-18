@@ -59,12 +59,14 @@ if page == "Data Mining & Visualization":
     
     # Data Overview Section
     st.subheader("🔍 Data Overview")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Records", "839,985", help="Total number of accident records")
+        st.metric("Accidents", "839,985", help="Number of recorded accidents")
     with col2:
-        st.metric("Features", "51", help="Number of features in dataset")
+        st.metric("Persons involved", "1,876,005", help="Number of road users in dataset")
     with col3:
+        st.metric("Features", "51", help="Number of features in dataset")
+    with col4:
         st.metric("Time Period", "2005 to 2016", help="Data collection period")
     
     st.markdown("---")
