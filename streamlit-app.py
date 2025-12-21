@@ -847,11 +847,12 @@ if page == "Data Mining & Visualization":
             df['severity'] = pd.to_numeric(df['grav'], errors='coerce').map(severity_map).fillna('Unknown')
             
             # Other mappings
+            # Use the same lighting labels as in the Feature Distributions tab
             lighting_map = {
                 1: 'Daylight',
-                2: 'Twilight_or_dawn',
+                2: 'Twilight/Dawn',
                 3: 'Night_without_public_lighting',
-                4: 'Night_with_public_lighting_not_functioning',
+                4: 'Night_&_dysfunctional_lighting',
                 5: 'Night_with_public_lighting_on'
             }
             weather_map = {
@@ -890,6 +891,8 @@ if page == "Data Mining & Visualization":
             df['collision_num'] = pd.to_numeric(df['col'], errors='coerce')
             df['urban_num'] = pd.to_numeric(df['agg'], errors='coerce')
             df['intersection_num'] = pd.to_numeric(df['int'], errors='coerce')
+            # Add numeric encoding for surface condition to include in correlation analysis
+            df['surface_condition_num'] = pd.to_numeric(df['surf'], errors='coerce')
             
             return df
         
@@ -972,17 +975,26 @@ if page == "Data Mining & Visualization":
                 st.plotly_chart(fig_hour_severity, use_container_width=True)
                 
                 # Severity by Road Type
-                st.markdown("#### 🛤️ Severity by Road Type")
+                st.markdown("#### 🛣️ Severity by Road Type")
                 df_road_severity = df_severity[df_severity['severity'] != 'Unknown'].copy()
                 road_severity = df_road_severity.groupby(['road_category_label', 'severity']).size().reset_index(name='count')
                 road_severity = road_severity[road_severity['severity'].isin(severity_order)]
                 top_roads = road_severity.groupby('road_category_label')['count'].sum().nlargest(5).index
                 road_severity = road_severity[road_severity['road_category_label'].isin(top_roads)]
                 
+                # Horizontal bar chart ordered by total counts (descending)
+                ordered_roads = (
+                    road_severity.groupby('road_category_label')['count']
+                    .sum()
+                    .sort_values(ascending=False)
+                    .index
+                    .tolist()
+                )
                 fig_road_severity = px.bar(
                     road_severity,
-                    x='road_category_label',
-                    y='count',
+                    x='count',
+                    y='road_category_label',
+                    orientation='h',
                     color='severity',
                     title='Severity by Road Type (Top 5)',
                     labels={'road_category_label': 'Road Type', 'count': 'Number of Cases', 'severity': 'Severity'},
@@ -992,10 +1004,9 @@ if page == "Data Mining & Visualization":
                         'Hospitalized': '#e67e22',
                         'Fatal': '#e74c3c'
                     },
-                    category_orders={'severity': severity_order}
+                    category_orders={'road_category_label': ordered_roads, 'severity': severity_order}
                 )
-                fig_road_severity.update_layout(height=400)
-                fig_road_severity.update_xaxes(tickangle=-45)
+                fig_road_severity.update_layout(height=400, showlegend=False)
                 st.plotly_chart(fig_road_severity, use_container_width=True)
             
             with col2:
@@ -1006,10 +1017,19 @@ if page == "Data Mining & Visualization":
                 top_lighting = lighting_severity.groupby('lighting_label')['count'].sum().nlargest(5).index
                 lighting_severity = lighting_severity[lighting_severity['lighting_label'].isin(top_lighting)]
                 
+                # Horizontal lighting severity chart ordered by total counts (descending)
+                ordered_lightings = (
+                    lighting_severity.groupby('lighting_label')['count']
+                    .sum()
+                    .sort_values(ascending=False)
+                    .index
+                    .tolist()
+                )
                 fig_lighting_severity = px.bar(
                     lighting_severity,
-                    x='lighting_label',
-                    y='count',
+                    x='count',
+                    y='lighting_label',
+                    orientation='h',
                     color='severity',
                     title='Severity by Lighting Condition',
                     labels={'lighting_label': 'Lighting', 'count': 'Number of Cases', 'severity': 'Severity'},
@@ -1019,10 +1039,9 @@ if page == "Data Mining & Visualization":
                         'Hospitalized': '#e67e22',
                         'Fatal': '#e74c3c'
                     },
-                    category_orders={'severity': severity_order}
+                    category_orders={'lighting_label': ordered_lightings, 'severity': severity_order}
                 )
-                fig_lighting_severity.update_layout(height=400)
-                fig_lighting_severity.update_xaxes(tickangle=-45)
+                fig_lighting_severity.update_layout(height=400, showlegend=False)
                 st.plotly_chart(fig_lighting_severity, use_container_width=True)
                 
                 # Severity by Urban/Rural
@@ -1031,10 +1050,19 @@ if page == "Data Mining & Visualization":
                 urban_severity = urban_severity[urban_severity['severity'].isin(severity_order)]
                 urban_severity = urban_severity[urban_severity['urban_label'].isin(['Urban', 'Rural'])]
                 
+                # Order urban labels by total counts (descending)
+                ordered_urban = (
+                    urban_severity.groupby('urban_label')['count']
+                    .sum()
+                    .sort_values(ascending=False)
+                    .index
+                    .tolist()
+                )
                 fig_urban_severity = px.bar(
                     urban_severity,
-                    x='urban_label',
-                    y='count',
+                    x='count',
+                    y='urban_label',
+                    orientation='h',
                     color='severity',
                     title='Severity by Urban vs Rural',
                     labels={'urban_label': 'Area Type', 'count': 'Number of Cases', 'severity': 'Severity'},
@@ -1044,9 +1072,9 @@ if page == "Data Mining & Visualization":
                         'Hospitalized': '#e67e22',
                         'Fatal': '#e74c3c'
                     },
-                    category_orders={'severity': severity_order}
+                    category_orders={'urban_label': ordered_urban, 'severity': severity_order}
                 )
-                fig_urban_severity.update_layout(height=400)
+                fig_urban_severity.update_layout(height=400, showlegend=False)
                 st.plotly_chart(fig_urban_severity, use_container_width=True)
             
             st.markdown("---")
@@ -1054,9 +1082,9 @@ if page == "Data Mining & Visualization":
             # Correlation Analysis
             st.markdown("#### 🔗 Feature Correlation with Severity")
             
-            # Select numeric columns for correlation
+            # Select numeric columns for correlation (use surface condition instead of intersection)
             corr_cols = ['severity_num', 'lighting_num', 'weather_num', 'road_category_num', 
-                         'collision_num', 'urban_num', 'intersection_num', 'hour']
+                         'collision_num', 'urban_num', 'surface_condition_num', 'hour']
             df_corr = df_severity[corr_cols].dropna()
             
             if len(df_corr) > 0:
@@ -1067,8 +1095,8 @@ if page == "Data Mining & Visualization":
                 fig_corr = px.imshow(
                     corr_matrix,
                     labels=dict(x="Feature", y="Feature", color="Correlation"),
-                    x=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Intersection', 'Hour'],
-                    y=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Intersection', 'Hour'],
+                    x=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Surface', 'Hour'],
+                    y=['Severity', 'Lighting', 'Weather', 'Road_Type', 'Collision', 'Urban', 'Surface', 'Hour'],
                     color_continuous_scale='RdBu_r',
                     aspect="auto",
                     title='Correlation Matrix: Severity and Key Features',
@@ -1091,7 +1119,7 @@ if page == "Data Mining & Visualization":
                             'road_category_num': 'Road Type',
                             'collision_num': 'Collision Type',
                             'urban_num': 'Urban/Rural',
-                            'intersection_num': 'Intersection',
+                            'surface_condition_num': 'Surface Condition',
                             'hour': 'Hour of Day'
                         }
                         st.write(f"• **{feature_names.get(feature, feature)}**: {corr_matrix['severity_num'][feature]:.3f}")
