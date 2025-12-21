@@ -65,7 +65,7 @@ if page == "Data Mining & Visualization":
     with col2:
         st.metric("Persons involved", "1,876,005", help="Number of road users in dataset")
     with col3:
-        st.metric("Vehicles involved", "1,433,390", help="Number of vehicles involved")
+        st.metric("Vehicles involved", "1,433,389", help="Number of vehicles involved")
     with col4:
         st.metric("Features", "51", help="Number of features in dataset")
     with col5:
@@ -145,7 +145,7 @@ if page == "Data Mining & Visualization":
     tab1, tab2, tab3, tab4 = st.tabs(["Temporal Analysis", "Geographical Analysis", "Feature Distributions", "Severity Analysis"])
     
     with tab1:
-        st.markdown("### ⏰ Temporal Patterns")
+        st.markdown("### ⌚ Temporal Patterns")
         
         # Load temporal data with caching
         @st.cache_data
@@ -259,7 +259,7 @@ if page == "Data Mining & Visualization":
                 st.plotly_chart(fig_weekday, use_container_width=True)
             
             # 4. Accidents by Time of Day
-            st.markdown("#### 🕐 Accidents by Time of Day")
+            st.markdown("#### 🕔 Accidents by Time of Day")
             df_temporal_clean = df_temporal[df_temporal['hour'].notna()].copy()
             accidents_by_hour = df_temporal_clean.groupby('hour').size().reset_index(name='count')
             accidents_by_hour = accidents_by_hour.sort_values('hour')
@@ -351,30 +351,30 @@ if page == "Data Mining & Visualization":
                 with col1:
                     st.metric("Total Accidents", f"{len(df_temporal):,}")
                 with col2:
-                    if len(accidents_by_hour) > 0:
-                        peak_hour_val = int(accidents_by_hour.sort_values('count', ascending=False)['hour'].iloc[0])
-                        st.metric("Peak Hour", f"{peak_hour_val:02d}:00")
-                    else:
-                        st.metric("Peak Hour", "N/A")
-                with col3:
                     if len(accidents_by_month) > 0:
                         peak_month = accidents_by_month.sort_values('count', ascending=False)['month_name'].iloc[0]
                         st.metric("Peak Month", str(peak_month))
                     else:
                         st.metric("Peak Month", "N/A")
-                with col4:
+                with col3:
                     if len(accidents_by_weekday) > 0:
                         peak_weekday = accidents_by_weekday.sort_values('count', ascending=False)['day_of_week'].iloc[0]
                         st.metric("Peak Weekday", str(peak_weekday))
                     else:
                         st.metric("Peak Weekday", "N/A")
+                with col4:
+                    if len(accidents_by_hour) > 0:
+                        peak_hour_val = int(accidents_by_hour.sort_values('count', ascending=False)['hour'].iloc[0])
+                        st.metric("Peak Hour", f"{peak_hour_val:02d}:00")
+                    else:
+                        st.metric("Peak Hour", "N/A")
                     
         except Exception as e:
             st.error(f"Error loading temporal data: {str(e)}")
             st.info("Please ensure caracteristics.csv is in the correct location.")
     
     with tab2:
-        st.markdown("### 🗺️ Geographical Distribution")
+        st.markdown("### 🌍 Geographical Distribution")
         
         # Load geographical data with caching
         @st.cache_data
@@ -576,106 +576,136 @@ if page == "Data Mining & Visualization":
         # Load feature data with caching
         @st.cache_data
         def load_feature_data():
-            # Load main datasets
+            # Load core accident-level datasets
             caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
             places = pd.read_csv('places.csv', dtype=str, low_memory=False)
             users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
             vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
-            
-            # Convert Num_Acc to string in all dataframes for consistent merging
-            caracteristics['Num_Acc'] = caracteristics['Num_Acc'].astype(str)
-            users['Num_Acc'] = users['Num_Acc'].astype(str)
-            vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
-            # places already loaded with dtype=str
-            
-            # Convert num_veh to string for consistent merging
-            if 'num_veh' in vehicles.columns:
-                vehicles['num_veh'] = vehicles['num_veh'].astype(str)
-            
-            # Merge datasets
-            df = caracteristics.merge(places, on='Num_Acc', how='left')
-            df = df.merge(users, on='Num_Acc', how='left')
-            df = df.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
-            
-            # Define label mappings for categorical features
+
+            # Keep the join key consistent everywhere
+            for df_obj in (caracteristics, places, users, vehicles):
+                df_obj['Num_Acc'] = df_obj['Num_Acc'].astype(str)
+
+            # Accident-level view: caracteristics + places only (one row per accident)
+            accidents = caracteristics.merge(places, on='Num_Acc', how='left')
+
+            # Return all three granularities so charts can pull the right denominator
+            return accidents, vehicles, users
+        
+        try:
+            accidents_df, vehicles_df, users_df = load_feature_data()
+
+            # Define label mappings for categorical features (accident-level)
             lighting_map = {
-                1: 'Daylight', 2: 'Dusk/Dawn', 3: 'Night_with_lights',
-                4: 'Night_no_lights', 5: 'Night_lights_off'
+                1: 'Daylight',
+                2: 'Twilight/Dawn',
+                3: 'Night_without_public_lighting',
+                4: 'Night_&_dysfunctional_lighting',
+                5: 'Night_with_public_lighting_on'
             }
-            
             weather_map = {
                 1: 'Normal', 2: 'Light_rain', 3: 'Heavy_rain', 4: 'Snow/Hail',
                 5: 'Fog/Smoke', 6: 'Strong_wind', 7: 'Dazzling', 8: 'Cloudy', 9: 'Other'
             }
-            
             road_category_map = {
                 1: 'Highway', 2: 'National_road', 3: 'Departmental_road',
                 4: 'Communal_road', 5: 'Off_public_road', 6: 'Parking', 9: 'Other'
             }
-            
             collision_map = {
-                1: 'Two_vehicles_front', 2: 'Two_vehicles_rear', 3: 'Two_vehicles_side',
-                4: 'Chain_collision', 5: 'Multiple_collisions', 6: 'Other_collision',
+                1: 'Frontal_two_vehicles',
+                2: 'Rear_end_two_vehicles',
+                3: 'Side_two_vehicles',
+                4: 'Chain_three_plus',
+                5: 'Multiple_three_plus',
+                6: 'Other_collision',
                 7: 'No_collision'
             }
-            
-            vehicle_category_map = {
-                1: 'Bicycle', 2: 'Moped', 3: 'Cart', 7: 'Light_vehicle', 10: 'Utility_vehicle',
-                13: 'Heavy_truck', 14: 'Tractor', 15: 'Special_vehicle', 16: 'Agricultural',
-                17: 'Motorcycle_50-125cc', 20: 'Special_utility', 21: 'Motorcycle_over_125cc',
-                30: 'Scooter_50-125cc', 31: 'Motorcycle_50-125cc', 32: 'Motorcycle_125-500cc',
-                33: 'Motorcycle_over_500cc', 34: 'Scooter_over_125cc', 35: 'Quad_light',
-                36: 'Quad_heavy', 37: 'Bus', 38: 'Coach', 39: 'Train', 40: 'Tram', 99: 'Other'
-            }
-            
             surface_condition_map = {
                 1: 'Normal', 2: 'Wet', 3: 'Puddles', 4: 'Flooded',
                 5: 'Snow', 6: 'Mud', 7: 'Ice', 8: 'Oil', 9: 'Other'
             }
-            
-            # Apply mappings
-            df['lighting_label'] = pd.to_numeric(df['lum'], errors='coerce').map(lighting_map).fillna('Unknown')
-            df['weather_label'] = pd.to_numeric(df['atm'], errors='coerce').map(weather_map).fillna('Unknown')
-            df['road_category_label'] = pd.to_numeric(df['catr'], errors='coerce').map(road_category_map).fillna('Unknown')
-            df['collision_label'] = pd.to_numeric(df['col'], errors='coerce').map(collision_map).fillna('Unknown')
-            df['vehicle_category_label'] = pd.to_numeric(df['catv'], errors='coerce').map(vehicle_category_map).fillna('Unknown')
-            df['surface_condition_label'] = pd.to_numeric(df['surf'], errors='coerce').map(surface_condition_map).fillna('Unknown')
-            df['urban_label'] = pd.to_numeric(df['agg'], errors='coerce').map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
-            
-            return df
-        
-        try:
-            df_features = load_feature_data()
-            
-            st.info(f"📊 Analyzing {len(df_features):,} accident records")
-            
+            vehicle_category_map = {
+                1: "Bicycle/Moped",
+                2: "Bicycle/Moped",
+                3: "other",
+                4: "Motorcycle",
+                5: "Motorcycle",
+                6: "Motorcycle",
+                7: "Car",
+                8: "Utility(Truck/Trailer)",
+                9: "Utility(Truck/Trailer)",
+                10: "Utility(Truck/Trailer)",
+                11: "Utility(Truck/Trailer)",
+                12: "Utility(Truck/Trailer)",
+                13: "Utility(Truck/Trailer)",
+                14: "Utility(Truck/Trailer)",
+                15: "Utility(Truck/Trailer)",
+                16: "Tractor",
+                17: "Tractor",
+                18: "Bus/Coach",
+                19: "Tram/Train",
+                20: "other",
+                21: "Tractor",
+                30: "Motorcycle",
+                31: "Motorcycle",
+                32: "Motorcycle",
+                33: "Motorcycle",
+                34: "Motorcycle",
+                35: "other",
+                36: "other",
+                37: "Bus/Coach",
+                38: "Bus/Coach",
+                39: "Tram/Train",
+                40: "Tram/Train",
+                99: "other",
+            }
+            # reduces 33 categories down to 8 groups (sorted for readability)
+
+            # Apply mappings to accident-level dataframe
+            accidents_df = accidents_df.copy()
+            accidents_df['lighting_label'] = pd.to_numeric(accidents_df['lum'], errors='coerce').map(lighting_map).fillna('Unknown')
+            accidents_df['weather_label'] = pd.to_numeric(accidents_df['atm'], errors='coerce').map(weather_map).fillna('Unknown')
+            accidents_df['road_category_label'] = pd.to_numeric(accidents_df['catr'], errors='coerce').map(road_category_map).fillna('Unknown')
+            accidents_df['collision_label'] = pd.to_numeric(accidents_df['col'], errors='coerce').map(collision_map).fillna('Unknown')
+            accidents_df['surface_condition_label'] = pd.to_numeric(accidents_df['surf'], errors='coerce').map(surface_condition_map).fillna('Unknown')
+            accidents_df['urban_label'] = pd.to_numeric(accidents_df['agg'], errors='coerce').map({1: 'Rural', 2: 'Urban'}).fillna('Unknown')
+
+            # Vehicle-level mapping stays separate to preserve correct vehicle counts
+            vehicles_df = vehicles_df.copy()
+            vehicles_df['vehicle_category_label'] = pd.to_numeric(vehicles_df['catv'], errors='coerce').map(vehicle_category_map).fillna('Unknown')
+
             # Create two columns for side-by-side charts
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 # 1. Lighting Conditions Distribution
                 st.markdown("#### 💡 Lighting Conditions")
-                lighting_counts = df_features['lighting_label'].value_counts().reset_index()
+                lighting_counts = accidents_df['lighting_label'].value_counts().reset_index()
                 lighting_counts.columns = ['Lighting', 'Count']
-                
+
+                # Ensure we order lighting categories by descending count so the largest bar appears first
+                ordered_lighting = lighting_counts.sort_values('Count', ascending=False).head(8)['Lighting'].tolist()
+
                 fig_lighting = px.bar(
                     lighting_counts.head(8),
-                    x='Lighting',
-                    y='Count',
+                    x='Count',
+                    y='Lighting',
+                    orientation='h',
                     title='Distribution of Lighting Conditions',
                     labels={'Lighting': 'Lighting Condition', 'Count': 'Number of Accidents'},
                     color='Count',
-                    color_continuous_scale='Viridis'
+                    color_continuous_scale='Viridis',
+                    category_orders={'Lighting': ordered_lighting}
                 )
                 fig_lighting.update_layout(showlegend=False, height=350)
                 fig_lighting.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_lighting, use_container_width=True)
-                
+
                 # 2. Weather Conditions Distribution
                 st.markdown("#### 🌤️ Weather Conditions")
-                weather_counts = df_features['weather_label'].value_counts().reset_index()
+                weather_counts = accidents_df['weather_label'].value_counts().reset_index()
                 weather_counts.columns = ['Weather', 'Count']
-                
+
                 fig_weather = px.bar(
                     weather_counts.head(8),
                     x='Weather',
@@ -688,12 +718,12 @@ if page == "Data Mining & Visualization":
                 fig_weather.update_layout(showlegend=False, height=350)
                 fig_weather.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_weather, use_container_width=True)
-                
+
                 # 3. Surface Conditions Distribution
-                st.markdown("#### 🛣️ Road Surface Conditions")
-                surface_counts = df_features['surface_condition_label'].value_counts().reset_index()
+                st.markdown("#### ❄️ Road Surface Conditions")
+                surface_counts = accidents_df['surface_condition_label'].value_counts().reset_index()
                 surface_counts.columns = ['Surface', 'Count']
-                
+
                 fig_surface = px.bar(
                     surface_counts.head(8),
                     x='Surface',
@@ -706,13 +736,13 @@ if page == "Data Mining & Visualization":
                 fig_surface.update_layout(showlegend=False, height=350)
                 fig_surface.update_xaxes(tickangle=-45)
                 st.plotly_chart(fig_surface, use_container_width=True)
-            
+
             with col2:
                 # 4. Road Category Distribution
-                st.markdown("#### 🛤️ Road Types")
-                road_counts = df_features['road_category_label'].value_counts().reset_index()
+                st.markdown("#### 🛣️ Road Types")
+                road_counts = accidents_df['road_category_label'].value_counts().reset_index()
                 road_counts.columns = ['Road_Type', 'Count']
-                
+
                 fig_road = px.bar(
                     road_counts.head(7),
                     x='Count',
@@ -725,12 +755,12 @@ if page == "Data Mining & Visualization":
                 )
                 fig_road.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
                 st.plotly_chart(fig_road, use_container_width=True)
-                
+
                 # 5. Collision Type Distribution
                 st.markdown("#### 💥 Collision Types")
-                collision_counts = df_features['collision_label'].value_counts().reset_index()
+                collision_counts = accidents_df['collision_label'].value_counts().reset_index()
                 collision_counts.columns = ['Collision_Type', 'Count']
-                
+
                 fig_collision = px.bar(
                     collision_counts.head(7),
                     x='Count',
@@ -743,40 +773,48 @@ if page == "Data Mining & Visualization":
                 )
                 fig_collision.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
                 st.plotly_chart(fig_collision, use_container_width=True)
-                
-                # 6. Vehicle Category Distribution (Top 10)
-                st.markdown("#### 🚗 Vehicle Types (Top 10)")
-                vehicle_counts = df_features['vehicle_category_label'].value_counts().reset_index()
+
+                # 6. Vehicle Category Distribution (Top 10, vehicle-level counts)
+                st.markdown("#### 🚗 Vehicle Types (grouped)")
+                vehicle_counts = vehicles_df['vehicle_category_label'].value_counts().reset_index()
                 vehicle_counts.columns = ['Vehicle_Type', 'Count']
-                
+
                 fig_vehicle = px.bar(
                     vehicle_counts.head(10),
                     x='Count',
                     y='Vehicle_Type',
                     orientation='h',
-                    title='Top 10 Vehicle Types Involved',
-                    labels={'Vehicle_Type': 'Vehicle Type', 'Count': 'Number of Accidents'},
+                    title='Grouped Vehicle Types Involved',
+                    labels={'Vehicle_Type': 'Vehicle Type', 'Count': 'Number of Vehicles'},
                     color='Count',
                     color_continuous_scale='Reds'
                 )
                 fig_vehicle.update_layout(showlegend=False, height=350, yaxis={'categoryorder': 'total ascending'})
                 st.plotly_chart(fig_vehicle, use_container_width=True)
-            
+
             # Summary statistics in an expander
             with st.expander("📊 Feature Distribution Summary"):
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4, col5, col6 = st.columns(6)
                 with col1:
-                    daylight_pct = (df_features['lighting_label'] == 'Daylight').sum() / len(df_features) * 100
-                    st.metric("Daylight Accidents", f"{daylight_pct:.1f}%")
+                    daylight_pct = (accidents_df['lighting_label'] == 'Daylight').sum() / len(accidents_df) * 100
+                    st.metric("Daylight", f"{daylight_pct:.1f}%")
                 with col2:
-                    normal_weather_pct = (df_features['weather_label'] == 'Normal').sum() / len(df_features) * 100
+                    normal_weather_pct = (accidents_df['weather_label'] == 'Normal').sum() / len(accidents_df) * 100
                     st.metric("Normal Weather", f"{normal_weather_pct:.1f}%")
                 with col3:
-                    urban_pct = (df_features['urban_label'] == 'Urban').sum() / len(df_features) * 100
-                    st.metric("Urban Accidents", f"{urban_pct:.1f}%")
-                with col4:
-                    normal_surface_pct = (df_features['surface_condition_label'] == 'Normal').sum() / len(df_features) * 100
+                    normal_surface_pct = (accidents_df['surface_condition_label'] == 'Normal').sum() / len(accidents_df) * 100
                     st.metric("Normal Surface", f"{normal_surface_pct:.1f}%")
+                with col4:
+                    # Percent of accidents involving at least one Car
+                    accidents_with_car = vehicles_df[vehicles_df['vehicle_category_label'] == 'Car']['Num_Acc'].nunique()
+                    car_pct = accidents_with_car / len(accidents_df) * 100 if len(accidents_df) > 0 else 0.0
+                    st.metric("Car Accidents", f"{car_pct:.1f}%")
+                with col5:
+                    communal_pct = (accidents_df['road_category_label'] == 'Communal_road').sum() / len(accidents_df) * 100
+                    st.metric("Communal Road", f"{communal_pct:.1f}%")
+                with col6:
+                    departmental_pct = (accidents_df['road_category_label'] == 'Departmental_road').sum() / len(accidents_df) * 100
+                    st.metric("Departmental Road", f"{departmental_pct:.1f}%")
         
         except Exception as e:
             st.error(f"Error loading feature data: {str(e)}")
@@ -792,22 +830,15 @@ if page == "Data Mining & Visualization":
             caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
             places = pd.read_csv('places.csv', dtype=str, low_memory=False)
             users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
-            vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
-            
+
             # Convert Num_Acc to string in all dataframes for consistent merging
             caracteristics['Num_Acc'] = caracteristics['Num_Acc'].astype(str)
             users['Num_Acc'] = users['Num_Acc'].astype(str)
-            vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
             # places already loaded with dtype=str
-            
-            # Convert num_veh to string for consistent merging
-            if 'num_veh' in vehicles.columns:
-                vehicles['num_veh'] = vehicles['num_veh'].astype(str)
-            
-            # Merge datasets
+
+            # Merge datasets using accident identifier only
             df = caracteristics.merge(places, on='Num_Acc', how='left')
             df = df.merge(users, on='Num_Acc', how='left')
-            df = df.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
             
             # Severity mapping (grav column in users.csv)
             severity_map = {
@@ -817,8 +848,11 @@ if page == "Data Mining & Visualization":
             
             # Other mappings
             lighting_map = {
-                1: 'Daylight', 2: 'Dusk/Dawn', 3: 'Night_with_lights',
-                4: 'Night_no_lights', 5: 'Night_lights_off'
+                1: 'Daylight',
+                2: 'Twilight_or_dawn',
+                3: 'Night_without_public_lighting',
+                4: 'Night_with_public_lighting_not_functioning',
+                5: 'Night_with_public_lighting_on'
             }
             weather_map = {
                 1: 'Normal', 2: 'Light_rain', 3: 'Heavy_rain', 4: 'Snow/Hail',
@@ -829,8 +863,12 @@ if page == "Data Mining & Visualization":
                 4: 'Communal_road', 5: 'Off_public_road', 6: 'Parking', 9: 'Other'
             }
             collision_map = {
-                1: 'Two_vehicles_front', 2: 'Two_vehicles_rear', 3: 'Two_vehicles_side',
-                4: 'Chain_collision', 5: 'Multiple_collisions', 6: 'Other_collision',
+                1: 'Frontal_two_vehicles',
+                2: 'Rear_end_two_vehicles',
+                3: 'Side_two_vehicles',
+                4: 'Chain_three_plus',
+                5: 'Multiple_three_plus',
+                6: 'Other_collision',
                 7: 'No_collision'
             }
             
@@ -1094,13 +1132,9 @@ elif page == "Pre-processing & Feature engineering":
         vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
         # places already loaded with dtype=str
         
-        # Convert num_veh to string for consistent merging
-        if 'num_veh' in vehicles.columns:
-            vehicles['num_veh'] = vehicles['num_veh'].astype(str)
-        
-        # Merge datasets
+        # Merge datasets using accident identifier only
         df_merged = df.merge(users, on='Num_Acc', how='left')
-        df_merged = df_merged.merge(vehicles, on=['Num_Acc', 'num_veh'], how='left')
+        df_merged = df_merged.merge(vehicles, on='Num_Acc', how='left')
         df_merged = df_merged.merge(places, on='Num_Acc', how='left')
         
         return df_merged
