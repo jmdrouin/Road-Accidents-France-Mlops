@@ -899,7 +899,7 @@ if page == "Data Mining & Visualization":
         try:
             df_severity = load_severity_data()
             
-            st.info(f"⚠️ Analyzing severity patterns across {len(df_severity):,} records")
+            st.info(f"🚑 Analyzing severity patterns across {len(df_severity):,} records")
             
             # Overall Severity Distribution
             st.markdown("#### 📊 Overall Severity Distribution")
