@@ -821,7 +821,7 @@ if page == "Data Mining & Visualization":
             st.info("Please ensure all CSV files are in the correct location.")
     
     with tab4:
-        st.markdown("### ⚠️ Severity Analysis")
+        st.markdown("### 🚑 Severity Analysis")
         
         # Load severity data with caching
         @st.cache_data
@@ -899,7 +899,7 @@ if page == "Data Mining & Visualization":
         try:
             df_severity = load_severity_data()
             
-            st.info(f"🚑 Analyzing severity patterns across {len(df_severity):,} records")
+            st.info(f"⚠️ Analyzing severity patterns across {len(df_severity):,} records")
             
             # Overall Severity Distribution
             st.markdown("#### 📊 Overall Severity Distribution")
