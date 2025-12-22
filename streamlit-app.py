@@ -212,7 +212,6 @@ if page == "Data Mining & Visualization":
                 accidents_by_year,
                 x='year',
                 y='count',
-                title='Number of Accidents by Year',
                 labels={'year': 'Year', 'count': 'Number of Accidents'},
                 color='count',
                 color_continuous_scale='Reds'
@@ -231,7 +230,6 @@ if page == "Data Mining & Visualization":
                     accidents_by_month,
                     x='month_name',
                     y='count',
-                    title='Number of Accidents by Month',
                     labels={'month_name': 'Month', 'count': 'Number of Accidents'},
                     color='count',
                     color_continuous_scale='Blues'
@@ -250,7 +248,6 @@ if page == "Data Mining & Visualization":
                     accidents_by_weekday,
                     x='day_of_week',
                     y='count',
-                    title='Number of Accidents by Day of Week',
                     labels={'day_of_week': 'Day of Week', 'count': 'Number of Accidents'},
                     color='count',
                     color_continuous_scale='Oranges'
@@ -267,7 +264,6 @@ if page == "Data Mining & Visualization":
                 accidents_by_hour,
                 x='hour',
                 y='count',
-                title='Number of Accidents by Hour of Day',
                 labels={'hour': 'Hour (24h format)', 'count': 'Number of Accidents'}
             )
             fig_hour.update_traces(fill='tozeroy', line_color='#2ca02c')
@@ -313,7 +309,6 @@ if page == "Data Mining & Visualization":
                     holiday_stats,
                     x='day_type',
                     y='avg_accidents_per_day',
-                    title='Average Daily Accidents: Holidays vs Regular Weekdays',
                     labels={'day_type': 'Day Type', 'avg_accidents_per_day': 'Avg Accidents per Day'},
                     color='day_type',
                     color_discrete_map={'Holidays': '#e74c3c', 'Regular Weekdays': '#3498db'},
@@ -523,7 +518,6 @@ if page == "Data Mining & Visualization":
                     x='count',
                     y='dept_name',
                     orientation='h',
-                    title='Accidents by Department (Top 20)',
                     labels={'dept_name': 'Department', 'count': 'Number of Accidents'},
                     color='count',
                     color_continuous_scale='Reds'
@@ -540,7 +534,6 @@ if page == "Data Mining & Visualization":
                     urban_rural_counts,
                     values='count',
                     names='area_type',
-                    title='Proportion of Accidents by Area Type',
                     color='area_type',
                     color_discrete_map={'Urban': '#e74c3c', 'Rural': '#3498db'}
                 )
@@ -692,7 +685,6 @@ if page == "Data Mining & Visualization":
                     x='Count',
                     y='Lighting',
                     orientation='h',
-                    title='Distribution of Lighting Conditions',
                     labels={'Lighting': 'Lighting Condition', 'Count': 'Number of Accidents'},
                     color='Count',
                     color_continuous_scale='Viridis',
@@ -711,7 +703,6 @@ if page == "Data Mining & Visualization":
                     weather_counts.head(8),
                     x='Weather',
                     y='Count',
-                    title='Distribution of Weather Conditions',
                     labels={'Weather': 'Weather Condition', 'Count': 'Number of Accidents'},
                     color='Count',
                     color_continuous_scale='Blues'
@@ -729,7 +720,6 @@ if page == "Data Mining & Visualization":
                     surface_counts.head(8),
                     x='Surface',
                     y='Count',
-                    title='Distribution of Road Surface Conditions',
                     labels={'Surface': 'Surface Condition', 'Count': 'Number of Accidents'},
                     color='Count',
                     color_continuous_scale='Oranges'
@@ -749,7 +739,6 @@ if page == "Data Mining & Visualization":
                     x='Count',
                     y='Road_Type',
                     orientation='h',
-                    title='Distribution by Road Type',
                     labels={'Road_Type': 'Road Type', 'Count': 'Number of Accidents'},
                     color='Count',
                     color_continuous_scale='Greens'
@@ -767,7 +756,6 @@ if page == "Data Mining & Visualization":
                     x='Count',
                     y='Collision_Type',
                     orientation='h',
-                    title='Distribution by Collision Type',
                     labels={'Collision_Type': 'Collision Type', 'Count': 'Number of Accidents'},
                     color='Count',
                     color_continuous_scale='Purples'
@@ -785,7 +773,6 @@ if page == "Data Mining & Visualization":
                     x='Count',
                     y='Vehicle_Type',
                     orientation='h',
-                    title='Grouped Vehicle Types Involved',
                     labels={'Vehicle_Type': 'Vehicle Type', 'Count': 'Number of Vehicles'},
                     color='Count',
                     color_continuous_scale='Reds'
@@ -916,7 +903,6 @@ if page == "Data Mining & Visualization":
                 severity_counts,
                 x='Severity',
                 y='Count',
-                title='Distribution of Accident Severity',
                 labels={'Severity': 'Severity Level', 'Count': 'Number of Cases'},
                 color='Severity',
                 color_discrete_map={
@@ -962,7 +948,6 @@ if page == "Data Mining & Visualization":
                     x='hour',
                     y='count',
                     color='severity',
-                    title='Accident Severity by Hour',
                     labels={'hour': 'Hour of Day', 'count': 'Number of Cases', 'severity': 'Severity'},
                     color_discrete_map={
                         'Unscathed': '#2ecc71',
@@ -997,7 +982,6 @@ if page == "Data Mining & Visualization":
                     y='road_category_label',
                     orientation='h',
                     color='severity',
-                    title='Severity by Road Type (Top 5)',
                     labels={'road_category_label': 'Road Type', 'count': 'Number of Cases', 'severity': 'Severity'},
                     color_discrete_map={
                         'Unscathed': '#2ecc71',
@@ -1032,7 +1016,6 @@ if page == "Data Mining & Visualization":
                     y='lighting_label',
                     orientation='h',
                     color='severity',
-                    title='Severity by Lighting Condition',
                     labels={'lighting_label': 'Lighting', 'count': 'Number of Cases', 'severity': 'Severity'},
                     color_discrete_map={
                         'Unscathed': '#2ecc71',
@@ -1065,7 +1048,6 @@ if page == "Data Mining & Visualization":
                     y='urban_label',
                     orientation='h',
                     color='severity',
-                    title='Severity by Urban vs Rural',
                     labels={'urban_label': 'Area Type', 'count': 'Number of Cases', 'severity': 'Severity'},
                     color_discrete_map={
                         'Unscathed': '#2ecc71',
