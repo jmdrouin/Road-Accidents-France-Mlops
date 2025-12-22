@@ -555,7 +555,8 @@ if page == "Data Mining & Visualization":
                     st.metric("Located Accidents", f"{len(df_all):,}", help="Total accidents in mainland France with valid department")
                 with col2:
                     top_dept = dept_counts.iloc[0]
-                    st.metric("Top Department", f"{top_dept['dept_name']}")
+                    top_dept_pct = (top_dept['count'] / len(df_all) * 100) if len(df_all) > 0 else 0.0
+                    st.metric("Top Department", f"{top_dept['dept_name']} ({top_dept_pct:.1f}%)")
                 with col3:
                     urban_count = (df_all['area_type'] == 'Urban').sum()
                     total_count = len(df_all)
@@ -1141,301 +1142,316 @@ if page == "Data Mining & Visualization":
 # Page 2: Pre-processing & Feature Engineering
 elif page == "Pre-processing & Feature engineering":
     st.markdown('<p class="section-header">🔧 Pre-processing & Feature Engineering</p>', unsafe_allow_html=True)
-    
+
     st.markdown("---")
-    
-    # Data Quality Section
-    st.subheader("🧹 Data Quality Assessment")
-    
+
     @st.cache_data
-    def load_quality_data():
-        df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
-        users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
-        vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
-        places = pd.read_csv('places.csv', dtype=str, low_memory=False)
-        
-        # Convert Num_Acc to string in all dataframes for consistent merging
-        df['Num_Acc'] = df['Num_Acc'].astype(str)
-        users['Num_Acc'] = users['Num_Acc'].astype(str)
-        vehicles['Num_Acc'] = vehicles['Num_Acc'].astype(str)
-        # places already loaded with dtype=str
-        
-        # Merge datasets using accident identifier only
-        df_merged = df.merge(users, on='Num_Acc', how='left')
-        df_merged = df_merged.merge(vehicles, on='Num_Acc', how='left')
-        df_merged = df_merged.merge(places, on='Num_Acc', how='left')
-        
-        return df_merged
-    
+    def load_pipeline_data():
+        def _drop_unnamed(df: pd.DataFrame) -> pd.DataFrame:
+            return df.drop(columns=[c for c in df.columns if c.startswith('Unnamed:')], errors='ignore')
+
+        raw_caract = _drop_unnamed(pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False))
+        acc = _drop_unnamed(pd.read_csv('acc.csv', encoding='utf-8', low_memory=False))
+        master = _drop_unnamed(pd.read_csv('master_acc.csv', encoding='utf-8', low_memory=False))
+
+        return {
+            'raw_caract': raw_caract,
+            'acc': acc,
+            'master': master,
+        }
+
     try:
-        df_quality = load_quality_data()
-        
-        # Overview metrics before preprocessing
+        data = load_pipeline_data()
+        raw_caract = data['raw_caract']
+        acc = data['acc']
+        master = data['master']
+
+        raw_rows, raw_cols = raw_caract.shape
+        acc_rows, acc_cols = acc.shape
+        master_rows, master_cols = master.shape
+        unique_accidents = acc['accident_id'].nunique() if 'accident_id' in acc.columns else None
+
+        removed_cols = [c for c in acc.columns if c not in master.columns]
+        added_cols = [c for c in master.columns if c not in acc.columns]
+        retained_cols = [c for c in master.columns if c in acc.columns]
+
+        # =====================================================================
+        # PIPELINE OVERVIEW
+        # =====================================================================
+        st.subheader("📊 Pipeline Overview")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Records (Raw)", f"{len(df_quality):,}", help="Initial number of records")
+            st.metric("Raw accidents", f"{raw_rows:,}", help="Rows in caracteristics.csv")
         with col2:
-            st.metric("Features (Raw)", len(df_quality.columns), help="Initial number of features")
+            st.metric("Raw features", f"{raw_cols:,}", help="Columns in caracteristics.csv")
         with col3:
-            missing_pct = (df_quality.isna().sum().sum() / (len(df_quality) * len(df_quality.columns))) * 100
-            st.metric("Missing Data %", f"{missing_pct:.1f}%", help="Overall missing value percentage")
+            dup_factor = (acc_rows / unique_accidents) if unique_accidents else None
+            delta_txt = f"x{dup_factor:.1f} rows/accident" if dup_factor else None
+            st.metric("Rows in acc.csv", f"{acc_rows:,}", delta=delta_txt, help="User/vehicle grain after merges")
         with col4:
-            duplicates = df_quality.duplicated().sum()
-            st.metric("Duplicate Rows", f"{duplicates:,}", help="Number of duplicate records")
-        
-        st.markdown("---")
-        
-        # Missing Values Analysis
-        st.markdown("#### 📊 Missing Values by Column (Top 20)")
-        
-        missing_data = (df_quality.isna().sum() / len(df_quality) * 100).sort_values(ascending=False).head(20)
-        
-        if len(missing_data) > 0:
-            missing_df = pd.DataFrame({'Feature': missing_data.index, 'Missing %': missing_data.values})
-            
-            fig_missing = px.bar(
-                missing_df,
-                x='Missing %',
-                y='Feature',
-                orientation='h',
-                title='Missing Values by Feature (Top 20)',
-                labels={'Feature': 'Feature', 'Missing %': 'Percentage Missing'},
-                color='Missing %',
-                color_continuous_scale='Reds'
-            )
-            fig_missing.update_layout(showlegend=False, height=450, yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_missing, use_container_width=True)
-        
-        st.markdown("---")
-        
-        # Data Types Distribution
-        st.markdown("#### 🔤 Data Types Distribution")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        dtype_counts = df_quality.dtypes.value_counts()
-        
+            col_delta = acc_cols - master_cols
+            st.metric("Final columns", f"{master_cols:,}", delta=f"-{col_delta}", help="After pruning + engineering")
+
+        # Column flow funnel
+        col1, col2 = st.columns(2)
         with col1:
-            numeric_cols = (df_quality.select_dtypes(include=['int64', 'int32', 'int16', 'int8', 'float64', 'float32']).shape[1])
-            st.metric("Numeric Features", numeric_cols)
-        
+            stage_df = pd.DataFrame({
+                'Stage': ['1. Raw CSVs', '2. acc.csv (merged)', '3. master_acc.csv'],
+                'Columns': [raw_cols, acc_cols, master_cols],
+            })
+            fig_funnel = px.funnel(stage_df, x="Columns", y="Stage", title="Column count through pipeline")
+            fig_funnel.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig_funnel, use_container_width=True)
+
         with col2:
-            categorical_cols = (df_quality.select_dtypes(include=['object']).shape[1])
-            st.metric("Categorical Features", categorical_cols)
-        
-        with col3:
-            datetime_cols = (df_quality.select_dtypes(include=['datetime64']).shape[1])
-            st.metric("Datetime Features", datetime_cols)
-        
-        # Data type pie chart
-        dtype_labels = []
-        dtype_values = []
-        for dtype, count in dtype_counts.items():
-            dtype_labels.append(str(dtype))
-            dtype_values.append(count)
-        
-        fig_dtypes = px.pie(
-            values=dtype_values,
-            names=dtype_labels,
-            title='Distribution of Data Types',
-            hole=0.4
-        )
-        fig_dtypes.update_traces(textposition='inside', textinfo='percent+label')
-        fig_dtypes.update_layout(height=400)
-        st.plotly_chart(fig_dtypes, use_container_width=True)
-        
-    except Exception as e:
-        st.error(f"Error loading quality data: {str(e)}")
-    
-    st.markdown("---")
-    
-    # Feature Engineering Section
-    st.subheader("⚙️ Feature Engineering Pipeline")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["Temporal", "Safety Equipment", "Vehicle & Impact", "Road Context"])
-    
-    with tab1:
-        st.markdown("### ⏰ Temporal Feature Engineering")
-        st.write("""
-        **New Engineered Features:**
-        - **date**: Combined from year, month, day columns
-        - **day_of_week**: Extracted from date (Monday-Sunday)
-        - **hour_group**: Binned hour into (Night, Morning, Afternoon, Evening)
-        - **is_weekend**: Boolean flag for weekend days
-        """)
-        
-        # Show example transformations
-        with st.expander("📋 Transformation Examples"):
-            example_data = {
-                'Original Columns': ['year=2015, month=6, day=15, hour=1430', 'year=2015, month=6, day=20, hour=0800'],
-                'date': ['2015-06-15', '2015-06-20'],
-                'day_of_week': ['Monday', 'Saturday'],
-                'hour_group': ['Afternoon', 'Morning'],
-                'is_weekend': [False, True]
-            }
-            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
-    
-    with tab2:
-        st.markdown("### 🛡️ Safety Equipment Feature Engineering")
-        st.write("""
-        **New Engineered Flags:**
-        - **seatbelt_used**: True if Seat_belt type AND Used
-        - **helmet_used**: True if Helmet type AND Used
-        - **any_protection_used**: True if any safety equipment was used
-        - **protection_effective**: True if protection used AND not undetermined
-        """)
-        
-        with st.expander("📋 Transformation Examples"):
-            example_data = {
-                'safety_equipment_type': ['Seat_belt', 'Helmet', 'Not_used', 'Seat_belt'],
-                'safety_equipment_usage': ['Used', 'Used', 'Not_used', 'Not_used'],
-                'seatbelt_used': [True, False, False, False],
-                'helmet_used': [False, True, False, False],
-                'any_protection_used': [True, True, False, False],
-                'protection_effective': [True, True, False, False]
-            }
-            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
-    
-    with tab3:
-        st.markdown("### 🚗 Vehicle & Impact Feature Engineering")
-        st.write("""
-        **Vehicle Grouping:**
-        - Car, Motorcycle, Bicycle, Truck, Bus, Other
-        
-        **Impact Grouping:**
-        - Front (Front, Front_left, Front_right)
-        - Rear (Rear, Rear_left, Rear_right)
-        - Side (Left_side, Right_side)
-        - Other
-        
-        **Interaction Features:**
-        - **motorcycle_side_impact**: True if Motorcycle AND Side impact
-        """)
-        
-        with st.expander("📋 Transformation Examples"):
-            example_data = {
-                'vehicle_category_label': ['Car', 'Motorcycle', 'Motorcycle', 'Truck'],
-                'impact_point_label': ['Front', 'Side', 'Front', 'Rear'],
-                'vehicle_group': ['Car', 'Motorcycle', 'Motorcycle', 'Truck'],
-                'impact_group': ['Front', 'Side', 'Front', 'Rear'],
-                'motorcycle_side_impact': [False, True, False, False]
-            }
-            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
-    
-    with tab4:
-        st.markdown("### 🛣️ Road & Accident Context Feature Engineering")
-        st.write("""
-        **New Features Created:**
-        - **is_night**: True for night conditions (with/without lighting)
-        - **is_urban**: True for built-up areas
-        - **lane_width**: Calculated as road_width / num_lanes
-        - **road_group**: Simplified categories (Highway, Major_road, Local_road)
-        - **weather_group**: Grouped weather (Clear, Rain, Snow, Fog, Other)
-        """)
-        
-        with st.expander("📋 Transformation Examples"):
-            example_data = {
-                'lighting_label': ['Daylight', 'Night_with_lights', 'Night_no_lights', 'Dusk'],
-                'urban_label': ['Built_up_area', 'Outside', 'Built_up_area', 'Outside'],
-                'road_width': [14.0, 8.5, 10.2, 7.0],
-                'num_lanes': [2, 1, 2, 1],
-                'is_night': [False, True, True, False],
-                'is_urban': [True, False, True, False],
-                'lane_width': [7.0, 8.5, 5.1, 7.0]
-            }
-            st.dataframe(pd.DataFrame(example_data), use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Data Cleaning Section
-    st.subheader("🧹 Data Cleaning & Column Pruning")
-    
-    with st.expander("📊 Columns Removed from Raw Dataset"):
-        removed_cols = {
-            'Category': [
-                'Redundant Temporal', 'Redundant Temporal', 'Redundant Temporal', 'Redundant Location',
-                'Redundant Location', 'Redundant Location', 'Sparse', 'Sparse', 'Sparse',
-                'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse', 'Sparse',
-                'Skewed', 'Skewed', 'Skewed', 'Skewed'
-            ],
-            'Column': [
-                'date', 'minute', 'time_hhmm', 'longitude_num', 'latitude_num', 'valid_geo',
-                'mobile_obstacle_label', 'pedestrian_crossing_width', 'reserved_lane_label',
-                'pedestrian_location_label', 'pedestrian_action_label', 'pedestrian_state_label',
-                'birth_year', 'num_lanes', 'road_width',
-                'infrastructure_label', 'school_zone_label', 'occupants_group',
-                'situation_label', 'traffic_direction_label'
-            ],
-            'Reason': [
-                'Replaced by derived features', 'Not used in analysis', 'Replaced by hour extraction',
-                'Used for geospatial analysis only', 'Used for geospatial analysis only', 'Not needed',
-                '~99.5% sparse', '~95% sparse', '~98% sparse',
-                'Mostly "Not_pedestrian"', 'Mostly "Not_pedestrian"', 'Mostly "Not_pedestrian"',
-                'Replaced by age + age_group', 'Captured in lane_width', 'Captured in lane_width',
-                '~89% Unknown', '~39% Unknown', '~99% zeros',
-                '~89% "On_road"', '~92% same direction'
+            treatment_df = pd.DataFrame([
+                {"Treatment": "🗑️ Removed", "Count": len(removed_cols)},
+                {"Treatment": "✨ Engineered", "Count": len(added_cols)},
+                {"Treatment": "✅ Retained", "Count": len(retained_cols)},
+            ])
+            fig_treat = px.pie(treatment_df, values="Count", names="Treatment",
+                               title="Feature treatment breakdown",
+                               color="Treatment",
+                               color_discrete_map={"🗑️ Removed": "#e74c3c", "✨ Engineered": "#2ecc71", "✅ Retained": "#3498db"})
+            fig_treat.update_traces(textposition='inside', textinfo='percent+label')
+            fig_treat.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig_treat, use_container_width=True)
+
+        st.markdown("---")
+
+        # =====================================================================
+        # STEP-BY-STEP PIPELINE DOCUMENTATION
+        # =====================================================================
+        st.subheader("📋 Step-by-Step Pipeline")
+
+        # Step 1
+        with st.expander("**Step 1:** Data Loading & Initial Audit", expanded=False):
+            st.markdown("""
+            - Load `acc.csv` (merged accidents + places + vehicles + users + holidays)
+            - Audit shape, dtypes, missing values, duplicates
+            - Initial shape: **{:,} rows × {:,} columns**
+            """.format(acc_rows, acc_cols))
+
+        # Step 2
+        with st.expander("**Step 2:** Drop Redundant & Sparse Columns", expanded=False):
+            drop_step2 = [
+                ("Unnamed: 0", "Index artifact"),
+                ("vehicle_id", "Not needed for modeling"),
+                ("date", "Will be rebuilt"),
+                ("minute", "Unused after hour extraction"),
+                ("time_hhmm", "Superseded by hour"),
+                ("gps_label", "Redundant with coordinates"),
+                ("holiday_name", "Binary flag sufficient"),
+                ("longitude_num / latitude_num / valid_geo", "Spatial only"),
+                ("mobile_obstacle_label", "~99% sparse"),
+                ("pedestrian_crossing_width", "~95% sparse"),
+                ("reserved_lane_label", "~98% sparse"),
+                ("pedestrian_location/action/state_label", "Mostly 'Not_pedestrian'"),
             ]
-        }
-        st.dataframe(pd.DataFrame(removed_cols), use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Dataset Transformation Summary
-    st.subheader("📈 Dataset Transformation Summary")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### Raw Dataset")
-        st.write("""
-        - **Records**: 839,985
-        - **Features**: 16 (raw columns)
-        - **Missing Data**: ~15-20% average
+            st.dataframe(pd.DataFrame(drop_step2, columns=["Column(s)", "Reason"]), use_container_width=True, hide_index=True)
+
+        # Step 3
+        with st.expander("**Step 3:** Type Casting", expanded=False):
+            st.markdown("""
+            - **Categorical**: lighting_label, urban_label, weather_label, collision_label, vehicle_category_label, etc.
+            - **Numeric**: year (int16), month/day/hour (int8), num_lanes/road_width/birth_year (float32)
+            - **Boolean**: is_weekend, is_holiday
+            """)
+            dtype_counts = master.dtypes.astype(str).value_counts().reset_index()
+            dtype_counts.columns = ['Dtype', 'Count']
+            fig_dtype = px.bar(dtype_counts, x='Dtype', y='Count', title='Data types in master_acc.csv',
+                               color='Dtype', text='Count')
+            fig_dtype.update_traces(textposition='outside')
+            fig_dtype.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig_dtype, use_container_width=True)
+
+        # Step 4
+        with st.expander("**Step 4:** Numeric Cleaning & Age Derivation", expanded=False):
+            st.markdown("""
+            - **num_lanes**: values ≤0 or >10 → NaN
+            - **road_width**: values ≤0 or >200 → NaN
+            - **birth_year**: values <1900 or >2010 → NaN
+            - **age** = year − birth_year
+            - **age_group** = pd.cut(age, bins=[0,17,25,40,60,100], labels=[Child, Young_Adult, Adult, Middle_Aged, Senior])
+            """)
+            if 'age' in master.columns:
+                fig_age = px.histogram(master[master['age'].notna()], x='age', nbins=40,
+                                       title='Age distribution (after cleaning)',
+                                       labels={'age': 'Age'}, color_discrete_sequence=['#3498db'])
+                fig_age.update_layout(height=300, showlegend=False)
+                st.plotly_chart(fig_age, use_container_width=True)
+
+        # Step 5
+        with st.expander("**Step 5:** Rare Category Grouping (<1% → 'other')", expanded=False):
+            st.markdown("""
+            Loop through all categorical columns; categories with <1% frequency are collapsed into **'other'**.
+            This stabilizes model training by avoiding overfitting to rare levels.
+            """)
+            example_cols = ['vehicle_group', 'impact_group', 'road_group', 'weather_group']
+            available = [c for c in example_cols if c in master.columns]
+            if available:
+                col1, col2 = st.columns(2)
+                for i, c in enumerate(available[:4]):
+                    vc = master[c].value_counts().reset_index()
+                    vc.columns = [c, 'Count']
+                    fig = px.bar(vc, x=c, y='Count', title=f'{c} distribution', text='Count',
+                                 color_discrete_sequence=['#9b59b6'])
+                    fig.update_traces(textposition='outside')
+                    fig.update_layout(height=280, showlegend=False)
+                    (col1 if i % 2 == 0 else col2).plotly_chart(fig, use_container_width=True)
+
+        # Step 6
+        with st.expander("**Step 6:** Feature Engineering", expanded=True):
+            st.markdown("#### 🛡️ Safety Equipment Features")
+            safety_eng = [
+                ("seatbelt_used", "Seat_belt type AND Used"),
+                ("helmet_used", "Helmet type AND Used"),
+                ("any_protection_used", "Any equipment marked Used"),
+                ("protection_effective", "Used AND not Undetermined"),
+            ]
+            st.dataframe(pd.DataFrame(safety_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+
+            st.markdown("#### 🚗 Vehicle & Impact Features")
+            vehicle_eng = [
+                ("vehicle_group", "Car / Motorcycle / Bicycle / Truck / Bus / other"),
+                ("impact_group", "Front / Rear / Side / other"),
+                ("motorcycle_side_impact", "Motorcycle AND Side impact"),
+            ]
+            st.dataframe(pd.DataFrame(vehicle_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+
+            st.markdown("#### 🛣️ Road & Context Features")
+            road_eng = [
+                ("is_night", "Lighting in [Night_with_*, Night_without_*]"),
+                ("is_urban", "urban_label == Built_up_area"),
+                ("lane_width", "road_width / num_lanes"),
+                ("road_group", "Highway / Major_road / Local_road / other"),
+                ("weather_group", "Clear / Rain / Snow / Fog / other"),
+            ]
+            st.dataframe(pd.DataFrame(road_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+
+            st.markdown("#### ⏰ Temporal Features")
+            temporal_eng = [
+                ("date", "Rebuilt from year/month/day"),
+                ("day_of_week", "Monday–Sunday from date"),
+                ("hour_group", "Night [0-6) / Morning [6-12) / Afternoon [12-18) / Evening [18-24)"),
+                ("is_weekend", "Saturday or Sunday"),
+            ]
+            st.dataframe(pd.DataFrame(temporal_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+
+        # Step 7
+        with st.expander("**Step 7:** Final Pruning (drop superseded columns)", expanded=False):
+            pruned = [
+                ("safety_equipment_type / usage", "Replaced by seatbelt_used, helmet_used, etc."),
+                ("vehicle_category_label", "Replaced by vehicle_group"),
+                ("impact_point_label", "Replaced by impact_group"),
+                ("lighting_label / urban_label", "Replaced by is_night, is_urban"),
+                ("road_category_label / weather_label", "Replaced by road_group, weather_group"),
+                ("year / month / day / hour / time_of_day", "Replaced by date, day_of_week, hour_group"),
+                ("birth_year / num_lanes / road_width", "Replaced by age, lane_width"),
+                ("infrastructure_label (~89% Unknown)", "Low signal"),
+                ("school_zone_label (~39% Unknown)", "Low signal"),
+                ("occupants_group (~99% zeros)", "Low signal"),
+                ("situation_label (~89% On_road)", "Skewed"),
+                ("traffic_direction_label (~92% Same)", "Skewed"),
+                ("intersection/traffic_regime/road_profile/road_layout", "Skewed"),
+            ]
+            st.dataframe(pd.DataFrame(pruned, columns=["Column(s)", "Reason"]), use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # =====================================================================
+        # FINAL FEATURE DISTRIBUTIONS
+        # =====================================================================
+        st.subheader("📈 Final Feature Distributions (master_acc.csv)")
+
+        # Categorical distributions
+        st.markdown("#### Categorical Features")
+        cat_cols_final = [c for c in master.columns if master[c].dtype.name in ['object', 'category'] or master[c].nunique() < 15]
+        # Prioritize key engineered features
+        priority_cats = ['injury_severity_label', 'vehicle_group', 'impact_group', 'weather_group',
+                         'road_group', 'age_group', 'hour_group', 'day_of_week', 'collision_label',
+                         'surface_condition_label', 'manoeuvre_label', 'sex_label', 'user_category_label']
+        display_cats = [c for c in priority_cats if c in master.columns][:8]
+
+        if display_cats:
+            rows = (len(display_cats) + 1) // 2
+            for row_idx in range(rows):
+                col1, col2 = st.columns(2)
+                for col_idx, col_container in enumerate([col1, col2]):
+                    feat_idx = row_idx * 2 + col_idx
+                    if feat_idx < len(display_cats):
+                        feat = display_cats[feat_idx]
+                        vc = master[feat].value_counts().head(10).reset_index()
+                        vc.columns = [feat, 'Count']
+                        fig = px.bar(vc, y=feat, x='Count', orientation='h',
+                                     title=f'{feat}', text='Count',
+                                     color_discrete_sequence=['#1abc9c'])
+                        fig.update_traces(textposition='outside')
+                        fig.update_layout(height=280, showlegend=False, yaxis={'categoryorder': 'total ascending'})
+                        col_container.plotly_chart(fig, use_container_width=True)
+
+        # Boolean features
+        st.markdown("#### Boolean Features")
+        bool_cols = [c for c in master.columns if master[c].dtype == bool]
+        if bool_cols:
+            bool_counts = []
+            for bc in bool_cols:
+                true_pct = master[bc].mean() * 100
+                bool_counts.append({'Feature': bc, 'True %': true_pct, 'False %': 100 - true_pct})
+            bool_df = pd.DataFrame(bool_counts)
+            fig_bool = px.bar(bool_df, x='Feature', y='True %', title='Boolean feature True rates (%)',
+                              text='True %', color_discrete_sequence=['#e67e22'])
+            fig_bool.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig_bool.update_layout(height=350, showlegend=False)
+            st.plotly_chart(fig_bool, use_container_width=True)
+
+        # Numeric features
+        st.markdown("#### Numeric Features")
+        num_cols_final = master.select_dtypes(include=['int8', 'int16', 'int32', 'int64', 'float32', 'float64']).columns.tolist()
+        priority_nums = ['age', 'lane_width', 'season']
+        display_nums = [c for c in priority_nums if c in num_cols_final][:3]
+
+        if display_nums:
+            cols = st.columns(len(display_nums))
+            for i, feat in enumerate(display_nums):
+                with cols[i]:
+                    fig = px.histogram(master[master[feat].notna()], x=feat, nbins=30,
+                                       title=f'{feat} distribution',
+                                       color_discrete_sequence=['#8e44ad'])
+                    fig.update_layout(height=280, showlegend=False)
+                    st.plotly_chart(fig, use_container_width=True)
+
+        # Missing values in final dataset
+        st.markdown("#### Missing Values in Final Dataset")
+        missing_pct = (master.isna().sum() / len(master) * 100).sort_values(ascending=False)
+        missing_pct = missing_pct[missing_pct > 0].head(15)
+        if len(missing_pct) > 0:
+            miss_df = pd.DataFrame({'Feature': missing_pct.index, 'Missing %': missing_pct.values})
+            fig_miss = px.bar(miss_df, x='Missing %', y='Feature', orientation='h',
+                              title='Missing values by feature (top 15)',
+                              text='Missing %', color_discrete_sequence=['#c0392b'])
+            fig_miss.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+            fig_miss.update_layout(height=400, showlegend=False, yaxis={'categoryorder': 'total ascending'})
+            st.plotly_chart(fig_miss, use_container_width=True)
+        else:
+            st.success("✅ No missing values in final dataset!")
+
+        st.markdown("---")
+
+        # Final summary
+        st.subheader("✅ Ready for Modeling")
+        st.info(f"""
+        **master_acc.csv** contains **{master_rows:,} rows** × **{master_cols} columns** ready for ML.
+        
+        Key engineered features: vehicle_group, impact_group, weather_group, road_group, age_group, hour_group, 
+        is_night, is_urban, seatbelt_used, helmet_used, motorcycle_side_impact, lane_width.
+        
+        Target variable: **injury_severity_label**
         """)
-    
-    with col2:
-        st.markdown("#### Processed Dataset")
-        st.write("""
-        - **Records**: 839,985
-        - **Features**: ~35 (after engineering & pruning)
-        - **Missing Data**: Reduced through imputation
-        - **Quality**: Improved with derived features
-        """)
-    
-    # Transformation steps visualization
-    steps = ['Raw Data\n(16 features)', 'Feature\nEngineering\n(+20 features)', 
-             'Remove\nRedundant\n(-10 features)', 'Final Dataset\n(~35 features)']
-    feature_counts = [16, 36, 26, 35]
-    
-    fig_transform = px.bar(
-        x=steps,
-        y=feature_counts,
-        title='Feature Count Through Processing Pipeline',
-        labels={'x': 'Stage', 'y': 'Number of Features'},
-        color=feature_counts,
-        color_continuous_scale='Blues',
-        text=feature_counts
-    )
-    fig_transform.update_traces(textposition='outside')
-    fig_transform.update_layout(showlegend=False, height=350)
-    st.plotly_chart(fig_transform, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Output Section
-    st.subheader("💾 Final Output")
-    
-    st.info("""
-    **Master Dataset Export**: `master_acc.csv`
-    
-    Contains all processed and engineered features ready for machine learning modeling.
-    Includes:
-    - ✅ All temporal engineered features
-    - ✅ All safety equipment flags
-    - ✅ Vehicle and impact groupings
-    - ✅ Road context and weather features
-    - ✅ Target variable: injury_severity_label
-    """)
+
+    except Exception as e:
+        st.error(f"Error loading preprocessing data: {str(e)}")
+        st.info("Please ensure acc.csv and master_acc.csv exist alongside the app.")
 
 # Page 3: Modelling
 elif page == "Modelling":
