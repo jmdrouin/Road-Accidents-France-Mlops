@@ -1535,7 +1535,7 @@ elif page == "Pre-processing & Feature engineering":
 
 # Page 3: Modeling & Optimization
 elif page == "Modeling & Optimization":
-    st.markdown('<p class="section-header">🤖 Modeling & Optimization</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-header">🚀 Modeling & Optimization</p>', unsafe_allow_html=True)
     st.markdown("### From Baseline to Production-Ready Models")
     
     st.markdown("---")
@@ -1657,7 +1657,7 @@ elif page == "Modeling & Optimization":
             "Macro F1": [0.4683, 0.4696, 0.4450, 0.4429, 0.4094],
             "Balanced Accuracy": [0.4608, 0.4583, 0.5377, 0.4393, 0.4134]
         }
-        st.dataframe(pd.DataFrame(bench_data).style.highlight_max(axis=0, color='#DAA520'))
+        st.dataframe(pd.DataFrame(bench_data).style.highlight_max(subset=["Accuracy", "Macro F1", "Balanced Accuracy"], axis=0, color='#DAA520'))
         
         st.success("🏆 **Winner**: LightGBM - Best accuracy and F1, handles non-linear patterns excellently")
     
@@ -1802,7 +1802,7 @@ elif page == "Modeling & Optimization":
             "Recall (Severe)": [0.38, 0.79, 0.46, 0.46],
             "Precision (Severe)": [0.66, 0.44, 0.60, 0.59]
         }
-        st.dataframe(pd.DataFrame(binary_data).style.highlight_max(axis=0, color='#DAA520'))
+        st.dataframe(pd.DataFrame(binary_data).style.highlight_max(subset=["Accuracy", "F1 (Severe)", "Balanced Acc", "ROC-AUC", "Recall (Severe)", "Precision (Severe)"], axis=0, color='#DAA520'))
         
         st.markdown("---")
         st.markdown("### 5.2 Winner: LightGBM + Class Weights")
@@ -2151,9 +2151,9 @@ elif page == "Modeling & Optimization":
 st.markdown("---")
 st.markdown(
     """
-    <div style='text-align: center; color: #666; padding: 1rem;'>
-        <p>🚧 This application is under active development</p>
+    <div style='text-align: center; color: #666; padding: 1rem;'>        
         <p>Road Accidents in France - Data Science Project 2025</p>
+        <p>Developed by Z. Malik and M. Peuyn</p>
     </div>
     """,
     unsafe_allow_html=True
