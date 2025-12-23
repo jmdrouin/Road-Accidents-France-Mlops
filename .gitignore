@@ -1,11 +1,117 @@
-# Git ignore
-# Ignore CSV data files
-*.csv
-*.CSV
-.vscode/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
 .venv/
-.venv*/
 .venv-py312/
+venv/
+ENV/
+env/
 .conda/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Large Data Files (exclude from git, download separately)
+caracteristics.csv
+places.csv
+users.csv
+vehicles.csv
+acc.csv
+master_acc.csv
+
+# But include holidays (small file)
+!holidays.csv
+
+# Keep sample data folder
+!sample_data/
+!sample_data/*.csv
+
+# Models (optional - may want to exclude large model files)
+# Uncomment if models are too large for git
+# models/*.pkl
+# models/*.joblib
+
+# Streamlit
+.streamlit/
+
+# Operating System
+Thumbs.db
+.DS_Store
+*.log
+
+# Temporary files
+tmp_*.py
+test_*.py
+test.ipynb
+*_backup.py
+*.tmp
+*.bak
+
+# Documentation artifacts
+.doctrees
+docs/_build/
+
+# Coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Database
+*.db
+*.sqlite3
+
+# Kaggle API credentials (NEVER commit!)
+kaggle.json
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Old/backup files
+*_old.*
+*_backup.*
+*.orig
 .env*
-tmp_geo_check.py
