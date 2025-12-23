@@ -5,6 +5,31 @@ import plotly.graph_objects as go
 import numpy as np
 import joblib
 import pickle
+import os
+from pathlib import Path
+
+# Helper function to find data files (supports both full and sample data)
+def get_data_file(filename):
+    """
+    Find data file in either root directory or sample_data folder.
+    Prioritizes full data if available, falls back to sample data.
+    """
+    # Check for full data in root
+    if os.path.exists(filename):
+        return filename
+    
+    # Check for sample data
+    sample_file = f"sample_data/{filename.replace('.csv', '_sample.csv')}"
+    if os.path.exists(sample_file):
+        return sample_file
+    
+    # Check for exact name in sample_data (e.g., holidays.csv)
+    sample_exact = f"sample_data/{filename}"
+    if os.path.exists(sample_exact):
+        return sample_exact
+    
+    # Not found
+    raise FileNotFoundError(f"Could not find {filename} in root or sample_data folder")
 
 # Page configuration
 st.set_page_config(
@@ -82,18 +107,18 @@ if page == "Data Mining & Visualization":
     # Load data with caching
     @st.cache_data
     def load_csv_samples():
-        caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+        caracteristics = pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False)
         # Force all columns to string to avoid mixed-type Arrow conversion issues (e.g., 'voie')
-        places = pd.read_csv('places.csv', dtype=str, low_memory=False)
-        users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+        places = pd.read_csv(get_data_file('places.csv'), dtype=str, low_memory=False)
+        users = pd.read_csv(get_data_file('users.csv'), encoding='latin-1', low_memory=False)
         # Ensure encoding to avoid surprises on Windows locales
-        vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
-        holidays = pd.read_csv('holidays.csv', encoding='latin-1', low_memory=False)
+        vehicles = pd.read_csv(get_data_file('vehicles.csv'), encoding='latin-1', low_memory=False)
+        holidays = pd.read_csv(get_data_file('holidays.csv'), encoding='latin-1', low_memory=False)
         return {
-            'caracteristics': caracteristics.sample(5, random_state=42),
-            'places': places.sample(5, random_state=42),
-            'users': users.sample(5, random_state=42),
-            'vehicles': vehicles.sample(5, random_state=42),
+            'caracteristics': caracteristics.sample(min(5, len(caracteristics)), random_state=42),
+            'places': places.sample(min(5, len(places)), random_state=42),
+            'users': users.sample(min(5, len(users)), random_state=42),
+            'vehicles': vehicles.sample(min(5, len(vehicles)), random_state=42),
             'holidays': holidays.head(5)
         }
     
@@ -153,7 +178,7 @@ if page == "Data Mining & Visualization":
         # Load temporal data with caching
         @st.cache_data
         def load_temporal_data():
-            df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+            df = pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False)
             # Convert key temporal columns to numeric safely
             for _col in ['an', 'hrmn', 'mois', 'jour']:
                 if _col in df.columns:
@@ -279,7 +304,7 @@ if page == "Data Mining & Visualization":
             
             # Load and merge holiday data
             try:
-                holidays_df = pd.read_csv('holidays.csv', encoding='latin-1')
+                holidays_df = pd.read_csv(get_data_file('holidays.csv'), encoding='latin-1')
                 holidays_df['ds'] = pd.to_datetime(holidays_df['ds'], errors='coerce')
                 holidays_df['is_holiday'] = True
                 
@@ -377,7 +402,7 @@ if page == "Data Mining & Visualization":
         # Load geographical data with caching
         @st.cache_data
         def load_geographical_data():
-            df = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
+            df = pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False)
 
             # Prepare numeric Lambert 93 coordinates
             df['lat_num'] = pd.to_numeric(df['lat'], errors='coerce')
@@ -574,10 +599,10 @@ if page == "Data Mining & Visualization":
         @st.cache_data
         def load_feature_data():
             # Load core accident-level datasets
-            caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
-            places = pd.read_csv('places.csv', dtype=str, low_memory=False)
-            users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
-            vehicles = pd.read_csv('vehicles.csv', encoding='latin-1', low_memory=False)
+            caracteristics = pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False)
+            places = pd.read_csv(get_data_file('places.csv'), dtype=str, low_memory=False)
+            users = pd.read_csv(get_data_file('users.csv'), encoding='latin-1', low_memory=False)
+            vehicles = pd.read_csv(get_data_file('vehicles.csv'), encoding='latin-1', low_memory=False)
 
             # Keep the join key consistent everywhere
             for df_obj in (caracteristics, places, users, vehicles):
@@ -818,9 +843,9 @@ if page == "Data Mining & Visualization":
         @st.cache_data
         def load_severity_data():
             # Load datasets
-            caracteristics = pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False)
-            places = pd.read_csv('places.csv', dtype=str, low_memory=False)
-            users = pd.read_csv('users.csv', encoding='latin-1', low_memory=False)
+            caracteristics = pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False)
+            places = pd.read_csv(get_data_file('places.csv'), dtype=str, low_memory=False)
+            users = pd.read_csv(get_data_file('users.csv'), encoding='latin-1', low_memory=False)
 
             # Convert Num_Acc to string in all dataframes for consistent merging
             caracteristics['Num_Acc'] = caracteristics['Num_Acc'].astype(str)
@@ -1135,9 +1160,9 @@ elif page == "Pre-processing & Feature engineering":
         def _drop_unnamed(df: pd.DataFrame) -> pd.DataFrame:
             return df.drop(columns=[c for c in df.columns if c.startswith('Unnamed:')], errors='ignore')
 
-        raw_caract = _drop_unnamed(pd.read_csv('caracteristics.csv', encoding='latin-1', low_memory=False))
-        acc = _drop_unnamed(pd.read_csv('acc.csv', encoding='utf-8', low_memory=False))
-        master = _drop_unnamed(pd.read_csv('master_acc.csv', encoding='utf-8', low_memory=False))
+        raw_caract = _drop_unnamed(pd.read_csv(get_data_file('caracteristics.csv'), encoding='latin-1', low_memory=False))
+        acc = _drop_unnamed(pd.read_csv(get_data_file('acc.csv'), encoding='utf-8', low_memory=False))
+        master = _drop_unnamed(pd.read_csv(get_data_file('master_acc.csv'), encoding='utf-8', low_memory=False))
 
         return {
             'raw_caract': raw_caract,
