@@ -59,7 +59,7 @@ streamlit run streamlit-app.py
 
 ## 📥 Dataset Download
 
-The full dataset contains **1,412,032 accident records** from France (2005-2016).
+The full dataset contains **839,985 accident records** from France (2005-2016).
 
 ### Automatic Download (Recommended)
 ```python
@@ -351,8 +351,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Z. Malik** - Data Engineering & ML Pipeline
-- **M. Peuyn** - Feature Engineering & Visualization
+- **Z. Malik**
+- **M. Peuyn**
 
 ---
 
@@ -361,14 +361,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Dataset: [Ahmed Lahlou on Kaggle](https://www.kaggle.com/datasets/ahmedlahlou/accidents-in-france-from-2005-to-2016)
 - Original data source: [French Government Open Data](https://www.data.gouv.fr/)
 - Inspired by road safety research and emergency response optimization
-
----
-
-## 📧 Contact
-
-For questions or collaboration:
-- Open an issue on GitHub
-- Email: [Your Email]
 
 ---
 
