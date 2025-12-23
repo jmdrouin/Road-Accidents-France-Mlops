@@ -77,7 +77,7 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.info("📊 This project analyzes road accident data in France to predict accident severity.")
+st.sidebar.info("📊 This project analyzes road accident data from France to predict accident severity.")
 
 # Page 1: Data Mining & Visualization
 if page == "Data Mining & Visualization":
