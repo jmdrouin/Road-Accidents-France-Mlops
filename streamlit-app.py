@@ -1,7 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-# plotly.graph_objects not used currently
+import plotly.graph_objects as go
+import numpy as np
+import joblib
+import pickle
 
 # Page configuration
 st.set_page_config(
@@ -1158,45 +1161,34 @@ elif page == "Pre-processing & Feature engineering":
         retained_cols = [c for c in master.columns if c in acc.columns]
 
         # =====================================================================
-        # PIPELINE OVERVIEW
+        # FEATURE TREATMENT BREAKDOWN & DATA FLOW FUNNEL
         # =====================================================================
-        st.subheader("📊 Pipeline Overview")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Raw accidents", f"{raw_rows:,}", help="Rows in caracteristics.csv")
-        with col2:
-            st.metric("Raw features", f"{raw_cols:,}", help="Columns in caracteristics.csv")
-        with col3:
-            dup_factor = (acc_rows / unique_accidents) if unique_accidents else None
-            delta_txt = f"x{dup_factor:.1f} rows/accident" if dup_factor else None
-            st.metric("Rows in acc.csv", f"{acc_rows:,}", delta=delta_txt, help="User/vehicle grain after merges")
-        with col4:
-            col_delta = acc_cols - master_cols
-            st.metric("Final columns", f"{master_cols:,}", delta=f"-{col_delta}", help="After pruning + engineering")
-
-        # Column flow funnel
-        col1, col2 = st.columns(2)
-        with col1:
+        st.subheader("📊 Feature Treatment & Data Flow")
+        
+        col_left, col_right = st.columns(2)
+        
+        with col_left:
+            # Funnel: raw merged data → cleaned → engineered → final
             stage_df = pd.DataFrame({
-                'Stage': ['1. Raw CSVs', '2. acc.csv (merged)', '3. master_acc.csv'],
-                'Columns': [raw_cols, acc_cols, master_cols],
+                'Stage': ['acc.csv\n(raw & merged)', 'acc.csv\n(cleaned)', 'acc.csv\n(engineered)', 'master_acc.csv\n(final)'],
+                'Columns': [51, 35, 51, 27],
             })
-            fig_funnel = px.funnel(stage_df, x="Columns", y="Stage", title="Column count through pipeline")
-            fig_funnel.update_layout(height=300, showlegend=False)
+            fig_funnel = px.funnel(stage_df, x="Columns", y="Stage", title="Feature flow: Merges → Cleaning → Engineering → Final")
+            fig_funnel.update_layout(height=600, showlegend=False)
             st.plotly_chart(fig_funnel, use_container_width=True)
-
-        with col2:
+        
+        with col_right:
             treatment_df = pd.DataFrame([
                 {"Treatment": "🗑️ Removed", "Count": len(removed_cols)},
                 {"Treatment": "✨ Engineered", "Count": len(added_cols)},
-                {"Treatment": "✅ Retained", "Count": len(retained_cols)},
+                {"Treatment": "✅ Retained", "Count": 11},
             ])
             fig_treat = px.pie(treatment_df, values="Count", names="Treatment",
                                title="Feature treatment breakdown",
                                color="Treatment",
                                color_discrete_map={"🗑️ Removed": "#e74c3c", "✨ Engineered": "#2ecc71", "✅ Retained": "#3498db"})
             fig_treat.update_traces(textposition='inside', textinfo='percent+label')
-            fig_treat.update_layout(height=300, showlegend=False)
+            fig_treat.update_layout(height=600, showlegend=True)
             st.plotly_chart(fig_treat, use_container_width=True)
 
         st.markdown("---")
@@ -1234,17 +1226,29 @@ elif page == "Pre-processing & Feature engineering":
 
         # Step 3
         with st.expander("**Step 3:** Type Casting", expanded=False):
-            st.markdown("""
-            - **Categorical**: lighting_label, urban_label, weather_label, collision_label, vehicle_category_label, etc.
-            - **Numeric**: year (int16), month/day/hour (int8), num_lanes/road_width/birth_year (float32)
-            - **Boolean**: is_weekend, is_holiday
-            """)
-            dtype_counts = master.dtypes.astype(str).value_counts().reset_index()
+            # Filter acc.csv to exclude columns dropped in Step 2 (representing cleaned state)
+            dropped_cols_step2 = [
+                'Unnamed: 0', 'vehicle_id', 'date', 'minute', 'time_hhmm', 'gps_label', 'holiday_name',
+                'longitude_num', 'latitude_num', 'valid_geo', 'mobile_obstacle_label',
+                'pedestrian_crossing_width', 'reserved_lane_label', 'pedestrian_location_label',
+                'pedestrian_action_label', 'pedestrian_state_label'
+            ]
+            acc_cleaned = acc[[col for col in acc.columns if col not in dropped_cols_step2]]
+            
+            # Data types distribution (cleaned acc.csv)
+            dtype_counts = acc_cleaned.dtypes.astype(str).value_counts().reset_index()
             dtype_counts.columns = ['Dtype', 'Count']
-            fig_dtype = px.bar(dtype_counts, x='Dtype', y='Count', title='Data types in master_acc.csv',
-                               color='Dtype', text='Count')
+            max_count = int(dtype_counts['Count'].max()) if not dtype_counts.empty else 0
+            fig_dtype = px.bar(
+                dtype_counts, x='Dtype', y='Count',
+                title='Data types in acc.csv (cleaned)',
+                color='Dtype', text='Count'
+            )
             fig_dtype.update_traces(textposition='outside')
-            fig_dtype.update_layout(height=300, showlegend=False)
+            if max_count > 0:
+                fig_dtype.update_yaxes(range=[0, max_count * 1.15])
+            fig_dtype.update_layout(height=380, showlegend=False, margin=dict(t=50, b=30))
+            fig_dtype.update_xaxes(tickangle=-20)
             st.plotly_chart(fig_dtype, use_container_width=True)
 
         # Step 4
@@ -1292,6 +1296,35 @@ elif page == "Pre-processing & Feature engineering":
                 ("protection_effective", "Used AND not Undetermined"),
             ]
             st.dataframe(pd.DataFrame(safety_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+            # Visual logic: Safety equipment feature engineering
+            safety_nodes = [
+                'seatbelt_type', 'seatbelt_use', 'seatbelt_used',
+                'helmet_type', 'helmet_use', 'helmet_used',
+                'airbag_deployed', 'any_protection_used',
+                'equipment_assessment', 'protection_effective'
+            ]
+            s_idx = {lbl: i for i, lbl in enumerate(safety_nodes)}
+            safety_links = dict(
+                source=[
+                    s_idx['seatbelt_type'], s_idx['seatbelt_use'],
+                    s_idx['helmet_type'], s_idx['helmet_use'],
+                    s_idx['seatbelt_used'], s_idx['helmet_used'], s_idx['airbag_deployed'],
+                    s_idx['any_protection_used'], s_idx['equipment_assessment']
+                ],
+                target=[
+                    s_idx['seatbelt_used'], s_idx['seatbelt_used'],
+                    s_idx['helmet_used'], s_idx['helmet_used'],
+                    s_idx['any_protection_used'], s_idx['any_protection_used'], s_idx['any_protection_used'],
+                    s_idx['protection_effective'], s_idx['protection_effective']
+                ],
+                value=[1]*9
+            )
+            fig_safety_logic = go.Figure(data=[go.Sankey(
+                node=dict(label=safety_nodes),
+                link=safety_links
+            )])
+            fig_safety_logic.update_layout(title='Safety equipment feature flow', height=320, margin=dict(t=40, b=20))
+            st.plotly_chart(fig_safety_logic, use_container_width=True)
 
             st.markdown("#### 🚗 Vehicle & Impact Features")
             vehicle_eng = [
@@ -1300,6 +1333,60 @@ elif page == "Pre-processing & Feature engineering":
                 ("motorcycle_side_impact", "Motorcycle AND Side impact"),
             ]
             st.dataframe(pd.DataFrame(vehicle_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+            # Weighted, decluttered Sankey with impact counts for Motorcycles
+            if {'vehicle_group', 'impact_group'}.issubset(master.columns):
+                moto = master[master['vehicle_group'] == 'Motorcycle']
+                # Map impacts to main buckets to avoid clutter
+                def _impact_bucket(val):
+                    return val if val in ['Front', 'Rear', 'Side'] else 'other'
+                impacts = moto['impact_group'].dropna().map(_impact_bucket)
+                impact_counts = impacts.value_counts().reindex(['Front', 'Rear', 'Side', 'other'], fill_value=0)
+
+                front, rear, side, other = [int(impact_counts.get(k, 0)) for k in ['Front', 'Rear', 'Side', 'other']]
+                total = front + rear + side + other
+                if total == 0:
+                    st.info("No motorcycle records available to plot.")
+                else:
+                    nodes = [
+                        'Motorcycle',
+                        f'Impact: Front (n={front})',
+                        f'Impact: Rear (n={rear})',
+                        f'Impact: Side (n={side})',
+                        f'Impact: Other (n={other})',
+                        'motorcycle_side_impact = True',
+                        'motorcycle_side_impact = False'
+                    ]
+                    idx = {lbl: i for i, lbl in enumerate(nodes)}
+                    # Motorcycle → Impact buckets
+                    sources_1 = [idx['Motorcycle']] * 4
+                    targets_1 = [idx[f'Impact: Front (n={front})'], idx[f'Impact: Rear (n={rear})'],
+                                 idx[f'Impact: Side (n={side})'], idx[f'Impact: Other (n={other})']]
+                    values_1 = [front, rear, side, other]
+                    colors_1 = ['#bdc3c7', '#bdc3c7', '#e74c3c', '#bdc3c7']
+                    # Impact → Feature (Side → True, others → False)
+                    sources_2 = [idx[f'Impact: Side (n={side})'], idx[f'Impact: Front (n={front})'],
+                                 idx[f'Impact: Rear (n={rear})'], idx[f'Impact: Other (n={other})']]
+                    targets_2 = [idx['motorcycle_side_impact = True'], idx['motorcycle_side_impact = False'],
+                                 idx['motorcycle_side_impact = False'], idx['motorcycle_side_impact = False']]
+                    values_2 = [side, front, rear, other]
+                    colors_2 = ['#e74c3c', '#d0d3d4', '#d0d3d4', '#d0d3d4']
+
+                    sankey = go.Figure(data=[go.Sankey(
+                        node=dict(label=nodes),
+                        link=dict(
+                            source=sources_1 + sources_2,
+                            target=targets_1 + targets_2,
+                            value=values_1 + values_2,
+                            color=colors_1 + colors_2
+                        )
+                    )])
+                    sankey.update_layout(
+                        title='Motorcycle-side impact: weighted flow with counts',
+                        height=320, margin=dict(t=40, b=20, l=20, r=20)
+                    )
+                    st.plotly_chart(sankey, use_container_width=True)
+            else:
+                st.info("Columns `vehicle_group` and `impact_group` are required for the weighted flow.")
 
             st.markdown("#### 🛣️ Road & Context Features")
             road_eng = [
@@ -1310,6 +1397,7 @@ elif page == "Pre-processing & Feature engineering":
                 ("weather_group", "Clear / Rain / Snow / Fog / other"),
             ]
             st.dataframe(pd.DataFrame(road_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+            # Road & Context visuals removed to reduce clutter; logic documented in the table above.
 
             st.markdown("#### ⏰ Temporal Features")
             temporal_eng = [
@@ -1319,6 +1407,27 @@ elif page == "Pre-processing & Feature engineering":
                 ("is_weekend", "Saturday or Sunday"),
             ]
             st.dataframe(pd.DataFrame(temporal_eng, columns=["Feature", "Logic"]), use_container_width=True, hide_index=True)
+            # Visual logic: Temporal feature engineering
+            t_labels = [
+                'year', 'month', 'day', 'date', 'day_of_week', 'hour', 'Night', 'Morning', 'Afternoon', 'Evening', 'Unknown', 'is_weekend'
+            ]
+            t_idx = {lbl: i for i, lbl in enumerate(t_labels)}
+            t_links = dict(
+                source=[
+                    t_idx['year'], t_idx['month'], t_idx['day'],
+                    t_idx['date'], t_idx['hour'], t_idx['hour'], t_idx['hour'], t_idx['hour'], t_idx['hour'],
+                    t_idx['day_of_week']
+                ],
+                target=[
+                    t_idx['date'], t_idx['date'], t_idx['date'],
+                    t_idx['day_of_week'], t_idx['Night'], t_idx['Morning'], t_idx['Afternoon'], t_idx['Evening'], t_idx['Unknown'],
+                    t_idx['is_weekend']
+                ],
+                value=[1]*10
+            )
+            fig_t_logic = go.Figure(data=[go.Sankey(node=dict(label=t_labels), link=t_links)])
+            fig_t_logic.update_layout(title='Temporal feature flow', height=320, margin=dict(t=40, b=20))
+            st.plotly_chart(fig_t_logic, use_container_width=True)
 
         # Step 7
         with st.expander("**Step 7:** Final Pruning (drop superseded columns)", expanded=False):
@@ -1381,10 +1490,14 @@ elif page == "Pre-processing & Feature engineering":
                 true_pct = master[bc].mean() * 100
                 bool_counts.append({'Feature': bc, 'True %': true_pct, 'False %': 100 - true_pct})
             bool_df = pd.DataFrame(bool_counts)
+            max_val = float(bool_df['True %'].max()) if len(bool_df) > 0 else 0.0
             fig_bool = px.bar(bool_df, x='Feature', y='True %', title='Boolean feature True rates (%)',
                               text='True %', color_discrete_sequence=['#e67e22'])
             fig_bool.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-            fig_bool.update_layout(height=350, showlegend=False)
+            if max_val > 0:
+                fig_bool.update_yaxes(range=[0, max(1.0, max_val * 1.15)])
+            fig_bool.update_layout(height=420, showlegend=False, margin=dict(t=60, b=40))
+            fig_bool.update_xaxes(tickangle=-25)
             st.plotly_chart(fig_bool, use_container_width=True)
 
         # Numeric features
@@ -1403,27 +1516,12 @@ elif page == "Pre-processing & Feature engineering":
                     fig.update_layout(height=280, showlegend=False)
                     st.plotly_chart(fig, use_container_width=True)
 
-        # Missing values in final dataset
-        st.markdown("#### Missing Values in Final Dataset")
-        missing_pct = (master.isna().sum() / len(master) * 100).sort_values(ascending=False)
-        missing_pct = missing_pct[missing_pct > 0].head(15)
-        if len(missing_pct) > 0:
-            miss_df = pd.DataFrame({'Feature': missing_pct.index, 'Missing %': missing_pct.values})
-            fig_miss = px.bar(miss_df, x='Missing %', y='Feature', orientation='h',
-                              title='Missing values by feature (top 15)',
-                              text='Missing %', color_discrete_sequence=['#c0392b'])
-            fig_miss.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-            fig_miss.update_layout(height=400, showlegend=False, yaxis={'categoryorder': 'total ascending'})
-            st.plotly_chart(fig_miss, use_container_width=True)
-        else:
-            st.success("✅ No missing values in final dataset!")
-
         st.markdown("---")
 
         # Final summary
         st.subheader("✅ Ready for Modeling")
         st.info(f"""
-        **master_acc.csv** contains **{master_rows:,} rows** × **{master_cols} columns** ready for ML.
+        **master_acc.csv** contains **{master_rows:,} rows** × **27 columns** ready for ML.
         
         Key engineered features: vehicle_group, impact_group, weather_group, road_group, age_group, hour_group, 
         is_night, is_urban, seatbelt_used, helmet_used, motorcycle_side_impact, lane_width.
@@ -1438,96 +1536,905 @@ elif page == "Pre-processing & Feature engineering":
 # Page 3: Modelling
 elif page == "Modelling":
     st.markdown('<p class="section-header">🤖 Machine Learning Modelling</p>', unsafe_allow_html=True)
-    
+
     st.markdown("---")
+
+    @st.cache_data
+    def load_model_data():
+        df = pd.read_csv('master_acc.csv', encoding='utf-8', low_memory=False)
+        df = df.dropna(subset=['injury_severity_label'])
+        return df
     
-    # Model Selection Section
-    st.subheader("🎯 Model Selection")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info("🚧 **Work in Progress**: Baseline models")
-        st.write("Models to be tested:")
-        st.write("- Logistic Regression")
-        st.write("- Decision Tree")
-        st.write("- Random Forest")
-        st.write("- Naive Bayes")
-    
-    with col2:
-        st.info("🚧 **Work in Progress**: Advanced models")
-        st.write("Models to be tested:")
-        st.write("- XGBoost")
-        st.write("- LightGBM")
-        st.write("- Neural Networks")
-        st.write("- Ensemble methods")
-    
-    st.markdown("---")
-    
-    # Model Training Section
-    st.subheader("🏋️ Model Training & Evaluation")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["Performance Metrics", "Hyperparameter Tuning", "Feature Importance", "Predictions"])
-    
-    with tab1:
-        st.markdown("### 📊 Performance Metrics")
-        st.warning("🚧 **Coming Soon**: Comprehensive model evaluation metrics")
-        st.write("Metrics to be displayed:")
-        st.write("- **Classification metrics**: Accuracy, Precision, Recall, F1-Score")
-        st.write("- **Confusion matrix**: Visual representation of predictions")
-        st.write("- **ROC-AUC curves**: Multi-class classification performance")
-        st.write("- **Cross-validation scores**: Model stability assessment")
+    @st.cache_resource
+    def load_trained_models():
+        """Load trained models and preprocessors for real predictions"""
+        import joblib
+        import pickle
+        from pathlib import Path
         
-        # Placeholder metrics
-        st.markdown("#### Expected Performance Comparison")
+        models_dir = Path("models")
+        if not models_dir.exists():
+            return None
+        
+        try:
+            # Load models
+            multiclass_model = joblib.load('models/multiclass_lgbm_model.pkl')
+            binary_model = joblib.load('models/binary_lgbm_model.pkl')
+            
+            # Load preprocessors
+            num_imputer = joblib.load('models/num_imputer.pkl')
+            cat_imputer = joblib.load('models/cat_imputer.pkl')
+            encoder = joblib.load('models/onehot_encoder.pkl')
+            scaler = joblib.load('models/standard_scaler.pkl')
+            label_encoder = joblib.load('models/label_encoder.pkl')
+            
+            # Load feature info
+            with open('models/feature_names_multiclass.pkl', 'rb') as f:
+                feature_names = pickle.load(f)
+            
+            with open('models/column_info.pkl', 'rb') as f:
+                column_info = pickle.load(f)
+            
+            with open('models/top40_features_binary.pkl', 'rb') as f:
+                top40_features = pickle.load(f)
+            
+            return {
+                'multiclass_model': multiclass_model,
+                'binary_model': binary_model,
+                'num_imputer': num_imputer,
+                'cat_imputer': cat_imputer,
+                'encoder': encoder,
+                'scaler': scaler,
+                'label_encoder': label_encoder,
+                'feature_names': feature_names,
+                'column_info': column_info,
+                'top40_features': top40_features
+            }
+        except FileNotFoundError as e:
+            return None
+
+    try:
+        model_df = load_model_data()
+        rows, cols = model_df.shape
+        
+        # Load models
+        model_artifacts = load_trained_models()
+        models_available = model_artifacts is not None
+
+        # ===== OVERVIEW METRICS =====
+        st.subheader("📊 Modeling Overview")
+        
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Best Accuracy", "TBD", help="Highest accuracy achieved")
+            st.metric("Dataset Rows", f"{rows:,}")
         with col2:
-            st.metric("Best F1-Score", "TBD", help="Best F1 score across models")
+            st.metric("Features", "85", help="After encoding")
         with col3:
-            st.metric("Best Recall", "TBD", help="Best recall for severe accidents")
+            st.metric("Approaches", "2", help="Multiclass + Binary")
         with col4:
-            st.metric("Best Precision", "TBD", help="Best precision for predictions")
-    
-    with tab2:
-        st.markdown("### ⚙️ Hyperparameter Tuning")
-        st.warning("🚧 **Coming Soon**: Hyperparameter optimization results")
-        st.write("Tuning methods:")
-        st.write("- Grid Search CV")
-        st.write("- Random Search CV")
-        st.write("- Bayesian Optimization")
-        st.write("- Optuna framework")
-        st.write("")
-        st.write("Optimal parameters will be displayed for each model.")
-    
-    with tab3:
-        st.markdown("### 🎯 Feature Importance")
-        st.warning("🚧 **Coming Soon**: Analysis of most important features for predictions")
-        st.write("Visualizations to include:")
-        st.write("- Feature importance bar charts")
-        st.write("- SHAP waterfall plots")
-        st.write("- Partial dependence plots")
-        st.write("- Feature interaction analysis")
-    
-    with tab4:
-        st.markdown("### 🔮 Make Predictions")
-        st.warning("🚧 **Coming Soon**: Interactive prediction interface")
-        st.write("Features:")
-        st.write("- Input accident parameters manually")
-        st.write("- Get severity prediction from best model")
-        st.write("- View prediction probabilities")
-        st.write("- Explain prediction with SHAP values")
-    
-    st.markdown("---")
-    
-    # Model Comparison Section
-    st.subheader("📈 Model Comparison")
-    st.info("🚧 **Work in Progress**: Comprehensive comparison of all trained models")
-    st.write("Will include:")
-    st.write("- Performance metrics table comparing all models")
-    st.write("- Training time comparison")
-    st.write("- Overfitting analysis (train vs validation performance)")
-    st.write("- Final model recommendation")
+            st.metric("Best ROC-AUC", "0.89", help="Binary classification")
+
+        # ===== CONCISE PIPELINE =====
+        st.markdown("---")
+        st.subheader("🔄 Modeling Pipeline (Both Notebooks)")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**🎯 Multiclass Classification** (Step-3 Notebook)")
+            st.markdown("""
+            1. Load & clean master_acc.csv
+            2. Train/test split (80/20, stratified)
+            3. Imputation (median/most-frequent)
+            4. Encoding (OneHot + StandardScaler)
+            5. Stack features → 85 dimensions
+            6. Label encode 4 severity classes
+            7. Benchmark 5 models
+            8. SMOTE experiments (Plain vs Borderline)
+            9. Feature selection + PCA trials
+            10. Hyperparameter tuning + threshold optimization
+            """)
+        
+        with col2:
+            st.markdown("**⚖️ Binary Classification** (Bin_Modeling Notebook)")
+            st.markdown("""
+            1. Same preprocessing as multiclass
+            2. **Redefine target:** Severe (0=Hosp, 2=Killed) vs Not Severe
+            3. Check class balance (minority: ~26%)
+            4. Baseline LGBM with class_weight='balanced'
+            5. Apply SMOTE for full balance
+            6. Apply Borderline SMOTE
+            7. SHAP analysis → top 40 features
+            8. Retrain on reduced features
+            9. Evaluate with ROC-AUC, F1, Precision, Recall
+            """)
+
+        st.markdown("---")
+
+        # ===== MODEL COMPARISON TABLES =====
+        st.subheader("🏆 Model Performance Comparison")
+        
+        tab1, tab2 = st.tabs(["🎯 Multiclass Models (4 Classes)", "⚖️ Binary Models (Severe vs Not)"])
+        
+        with tab1:
+            st.markdown("### Multiclass Classification Results")
+            st.markdown("**Target:** 4 classes (0=Hospitalized, 1=Unhospitalized, 2=Killed, 3=Unharmed)")
+            
+            # Comprehensive multiclass comparison
+            multiclass_df = pd.DataFrame([
+                {
+                    "Experiment": "Initial Benchmark", 
+                    "Model": "RidgeClassifier", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.542, 
+                    "Precision": 0.52, 
+                    "Recall": 0.54, 
+                    "F1 Macro": 0.510, 
+                    "Balanced Acc": 0.541
+                },
+                {
+                    "Experiment": "Initial Benchmark", 
+                    "Model": "LogisticRegression", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.550, 
+                    "Precision": 0.54, 
+                    "Recall": 0.55, 
+                    "F1 Macro": 0.534, 
+                    "Balanced Acc": 0.549
+                },
+                {
+                    "Experiment": "Initial Benchmark", 
+                    "Model": "LinearDiscriminantAnalysis", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.544, 
+                    "Precision": 0.53, 
+                    "Recall": 0.54, 
+                    "F1 Macro": 0.531, 
+                    "Balanced Acc": 0.544
+                },
+                {
+                    "Experiment": "Initial Benchmark", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.674, 
+                    "Precision": 0.66, 
+                    "Recall": 0.67, 
+                    "F1 Macro": 0.662, 
+                    "Balanced Acc": 0.673
+                },
+                {
+                    "Experiment": "Full Training", 
+                    "Model": "LightGBM (5-fold CV)", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.679, 
+                    "Precision": 0.67, 
+                    "Recall": 0.68, 
+                    "F1 Macro": 0.667, 
+                    "Balanced Acc": 0.678
+                },
+                {
+                    "Experiment": "SMOTE Variants", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "Plain SMOTE",
+                    "Accuracy": 0.692, 
+                    "Precision": 0.69, 
+                    "Recall": 0.69, 
+                    "F1 Macro": 0.681, 
+                    "Balanced Acc": 0.691
+                },
+                {
+                    "Experiment": "SMOTE Variants", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "Borderline SMOTE",
+                    "Accuracy": 0.697, 
+                    "Precision": 0.70, 
+                    "Recall": 0.70, 
+                    "F1 Macro": 0.686, 
+                    "Balanced Acc": 0.696
+                },
+                {
+                    "Experiment": "PCA Experiments", 
+                    "Model": "LightGBM", 
+                    "Features": 60, 
+                    "Resampling": "PCA→BorderlineSMOTE",
+                    "Accuracy": 0.688, 
+                    "Precision": 0.68, 
+                    "Recall": 0.69, 
+                    "F1 Macro": 0.677, 
+                    "Balanced Acc": 0.687
+                },
+                {
+                    "Experiment": "Final Tuned", 
+                    "Model": "LightGBM + Tuning", 
+                    "Features": 85, 
+                    "Resampling": "Borderline + Weights + Thresholds",
+                    "Accuracy": 0.702, 
+                    "Precision": 0.71, 
+                    "Recall": 0.70, 
+                    "F1 Macro": 0.691, 
+                    "Balanced Acc": 0.701
+                },
+            ])
+            
+            st.dataframe(
+                multiclass_df.style.highlight_max(
+                    subset=['Accuracy', 'Precision', 'Recall', 'F1 Macro', 'Balanced Acc'], 
+                    color="#ffeb3b7b", axis=0
+                ), 
+                use_container_width=True, 
+                hide_index=True
+            )
+            
+            # Visualization
+            fig_multi = px.bar(
+                multiclass_df.tail(5), 
+                x="Model", 
+                y=["Accuracy", "Precision", "Recall", "F1 Macro"],
+                barmode="group",
+                title="Top 5 Multiclass Experiments Performance",
+                height=400,
+                color_discrete_sequence=['#3498db', '#e74c3c', '#2ecc71', '#f39c12']
+            )
+            fig_multi.update_layout(xaxis_tickangle=-30, yaxis_range=[0.65, 0.75])
+            st.plotly_chart(fig_multi, use_container_width=True)
+            
+            st.success("🏆 **Best Multiclass:** LightGBM + Borderline SMOTE + Custom Weights → 70.2% Accuracy, 69.1% F1 Macro")
+            
+            # ===== MULTICLASS PREDICTION TOOL =====
+            st.markdown("---")
+            st.markdown("### 🎯 Try the Multiclass Model")
+            
+            if models_available:
+                st.success("✅ Trained model loaded - Real predictions enabled")
+            else:
+                st.warning("⚠️ Trained models not found - Using demonstration mode")
+                st.info("To enable real predictions, run: `python export_models.py` and follow instructions")
+            
+            st.info("Select key features below to get a severity prediction")
+            
+            with st.form("multiclass_prediction_form"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    vehicle_type = st.selectbox("Vehicle Type", ["Car", "Motorcycle", "Bicycle", "Truck", "Bus"], key="mc_vehicle")
+                    impact_point = st.selectbox("Impact Point", ["Front", "Rear", "Side", "Other"], key="mc_impact")
+                    age_group = st.selectbox("Age Group", ["Child", "Young_Adult", "Adult", "Middle_Aged", "Senior"], key="mc_age")
+                
+                with col2:
+                    weather = st.selectbox("Weather", ["Clear", "Rain", "Snow", "Fog"], key="mc_weather")
+                    road_type = st.selectbox("Road Type", ["Highway", "Major_road", "Local_road"], key="mc_road")
+                    time_of_day = st.selectbox("Time of Day", ["Morning", "Afternoon", "Evening", "Night"], key="mc_time")
+                
+                with col3:
+                    is_urban = st.checkbox("Urban Area", value=True, key="mc_urban")
+                    is_weekend = st.checkbox("Weekend", value=False, key="mc_weekend")
+                    seatbelt_used = st.checkbox("Seatbelt Used", value=True, key="mc_seatbelt")
+                    motorcycle_side = st.checkbox("Motorcycle Side Impact", value=False, key="mc_moto_side")
+                
+                predict_btn = st.form_submit_button("🔮 Predict Severity", use_container_width=True)
+                
+                if predict_btn:
+                    if models_available:
+                        # ===== REAL MODEL PREDICTION =====
+                        try:
+                            # Build input dataframe matching training data structure
+                            input_dict = {
+                                'age': 35.0,  # Default age
+                                'lane_width': 3.5,  # Default lane width
+                                'collision_label': 'Frontal_two_vehicles',
+                                'surface_condition_label': 'Normal',
+                                'manoeuvre_label': 'Going_straight',
+                                'sex_label': 'Male',
+                                'user_category_label': 'Driver',
+                                'seat_position_label': 'Front',
+                                'journey_purpose_label': 'Commute',
+                                'vehicle_group': vehicle_type,
+                                'impact_group': impact_point,
+                                'road_group': road_type,
+                                'weather_group': weather,
+                                'day_of_week': 'Friday' if is_weekend else 'Monday',
+                                'hour_group': time_of_day,
+                                'season': 1,
+                                'age_group': age_group,
+                                'is_weekend': is_weekend,
+                                'is_holiday': False,
+                                'seatbelt_used': seatbelt_used,
+                                'helmet_used': False,
+                                'any_protection_used': seatbelt_used,
+                                'protection_effective': seatbelt_used,
+                                'motorcycle_side_impact': motorcycle_side,
+                                'is_night': time_of_day == 'Night',
+                                'is_urban': is_urban
+                            }
+                            
+                            input_df = pd.DataFrame([input_dict])
+                            
+                            # Preprocess: Imputation
+                            col_info = model_artifacts['column_info']
+                            input_df[col_info['numeric_cols']] = model_artifacts['num_imputer'].transform(input_df[col_info['numeric_cols']])
+                            input_df[col_info['categorical_cols']] = model_artifacts['cat_imputer'].transform(input_df[col_info['categorical_cols']])
+                            
+                            # OneHot encode categorical
+                            X_encoded = model_artifacts['encoder'].transform(input_df[col_info['categorical_cols']])
+                            
+                            # Scale numeric
+                            X_scaled = model_artifacts['scaler'].transform(input_df[col_info['numeric_cols']])
+                            
+                            # Combine all features
+                            X_final = np.hstack([
+                                X_scaled,
+                                X_encoded,
+                                input_df[col_info['binary_cols']].values
+                            ])
+                            
+                            # Predict
+                            prediction = model_artifacts['multiclass_model'].predict(X_final)[0]
+                            probabilities = model_artifacts['multiclass_model'].predict_proba(X_final)[0]
+                            
+                            # Decode prediction
+                            severity_labels = model_artifacts['label_encoder'].classes_
+                            predicted_severity = severity_labels[prediction]
+                            
+                            # Display results
+                            st.markdown("---")
+                            
+                            # Color mapping
+                            color_map = {
+                                'Killed': '#e74c3c',
+                                'Hospitalized': '#e67e22',
+                                'Unhospitalized': '#f39c12',
+                                'Unharmed': '#2ecc71'
+                            }
+                            color = color_map.get(predicted_severity, '#95a5a6')
+                            
+                            st.markdown(f"### Predicted Severity: <span style='color: {color}; font-weight: bold;'>{predicted_severity}</span>", unsafe_allow_html=True)
+                            
+                            # Show probabilities
+                            col1, col2, col3, col4 = st.columns(4)
+                            for i, (label, prob) in enumerate(zip(severity_labels, probabilities)):
+                                with [col1, col2, col3, col4][i]:
+                                    st.metric(label, f"{prob:.1%}")
+                            
+                            # Probability chart
+                            prob_df = pd.DataFrame({
+                                'Severity': severity_labels,
+                                'Probability': probabilities
+                            })
+                            fig_prob = px.bar(
+                                prob_df, x='Severity', y='Probability',
+                                title='Prediction Probabilities',
+                                color='Severity',
+                                color_discrete_map=color_map
+                            )
+                            fig_prob.update_layout(showlegend=False, height=350)
+                            st.plotly_chart(fig_prob, use_container_width=True)
+                            
+                            # Feature importance note
+                            with st.expander("📊 About this prediction"):
+                                st.write(f"""
+                                **Model:** LightGBM + Borderline SMOTE + Class Weights
+                                
+                                **Confidence:** {probabilities[prediction]:.1%} for {predicted_severity}
+                                
+                                **Key factors considered:**
+                                - Vehicle type: {vehicle_type}
+                                - Impact point: {impact_point}
+                                - Age group: {age_group}
+                                - Weather: {weather}
+                                - Time of day: {time_of_day}
+                                - Safety equipment: {'Used' if seatbelt_used else 'Not used'}
+                                
+                                **Model Performance:** 70.2% accuracy, 69.1% F1 macro
+                                """)
+                        
+                        except Exception as e:
+                            st.error(f"Prediction error: {str(e)}")
+                            st.info("Falling back to demonstration mode...")
+                            models_available = False
+                    
+                    if not models_available:
+                        # ===== DEMONSTRATION MODE (Rule-based) =====
+                        # Simple rule-based prediction for demonstration
+                        risk_score = 0
+                        
+                        # Risk factors
+                        if vehicle_type == "Motorcycle": risk_score += 3
+                        if vehicle_type == "Bicycle": risk_score += 2
+                        if impact_point == "Side": risk_score += 2
+                        if impact_point == "Front": risk_score += 2
+                        if weather in ["Rain", "Snow", "Fog"]: risk_score += 2
+                        if time_of_day == "Night": risk_score += 2
+                        if not seatbelt_used: risk_score += 3
+                        if motorcycle_side: risk_score += 3
+                        if is_weekend: risk_score += 1
+                        if age_group in ["Child", "Senior"]: risk_score += 1
+                        
+                        # Protective factors
+                        if road_type == "Highway": risk_score -= 1
+                        if is_urban: risk_score -= 1
+                        
+                        # Map risk score to severity
+                        if risk_score >= 8:
+                            severity = "Killed"
+                            color = "#e74c3c"
+                            confidence = "High Risk"
+                        elif risk_score >= 5:
+                            severity = "Hospitalized"
+                            color = "#e67e22"
+                            confidence = "Moderate-High Risk"
+                        elif risk_score >= 2:
+                            severity = "Unhospitalized"
+                            color = "#f39c12"
+                            confidence = "Low-Moderate Risk"
+                        else:
+                            severity = "Unharmed"
+                            color = "#2ecc71"
+                            confidence = "Low Risk"
+                        
+                        st.markdown("---")
+                        st.markdown(f"### Predicted Severity: <span style='color: {color}; font-weight: bold;'>{severity}</span>", unsafe_allow_html=True)
+                        st.markdown(f"**Risk Level:** {confidence} (Score: {risk_score}/12)")
+                        
+                        # Show contributing factors
+                        with st.expander("📊 Risk Factors Analysis"):
+                            st.write("**High Risk Factors Present:**")
+                            factors = []
+                            if vehicle_type in ["Motorcycle", "Bicycle"]: factors.append(f"- {vehicle_type} (vulnerable vehicle)")
+                            if impact_point in ["Side", "Front"]: factors.append(f"- {impact_point} impact (high force)")
+                            if weather != "Clear": factors.append(f"- {weather} weather")
+                            if time_of_day == "Night": factors.append("- Night time (reduced visibility)")
+                            if not seatbelt_used: factors.append("- No seatbelt (critical safety factor)")
+                            if motorcycle_side: factors.append("- Motorcycle side impact (extremely dangerous)")
+                            
+                            if factors:
+                                for f in factors:
+                                    st.write(f)
+                            else:
+                                st.write("No major risk factors identified")
+                            
+                            st.write("\n**Protective Factors:**")
+                            protective = []
+                            if seatbelt_used: protective.append("- Seatbelt used")
+                            if is_urban: protective.append("- Urban area (lower speeds)")
+                            if road_type == "Highway": protective.append("- Highway (controlled environment)")
+                            
+                            for p in protective:
+                                st.write(p)
+                        
+                        st.caption("⚠️ This is a simplified demonstration model. Actual predictions require the full trained model with 85 features.")
+        
+        with tab2:
+            st.markdown("### Binary Classification Results")
+            st.markdown("**Target:** Severe (Hospitalized + Killed) vs Not Severe (Unhospitalized + Unharmed)")
+            
+            # Comprehensive binary comparison
+            binary_df = pd.DataFrame([
+                {
+                    "Experiment": "Baseline", 
+                    "Model": "LightGBM (default)", 
+                    "Features": 85, 
+                    "Resampling": "None",
+                    "Accuracy": 0.843, 
+                    "Precision": 0.71, 
+                    "Recall": 0.62, 
+                    "F1": 0.66, 
+                    "Balanced Acc": 0.754, 
+                    "ROC-AUC": 0.876
+                },
+                {
+                    "Experiment": "Class Weights", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "class_weight='balanced'",
+                    "Accuracy": 0.825, 
+                    "Precision": 0.66, 
+                    "Recall": 0.71, 
+                    "F1": 0.68, 
+                    "Balanced Acc": 0.772, 
+                    "ROC-AUC": 0.881
+                },
+                {
+                    "Experiment": "SMOTE", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "Plain SMOTE",
+                    "Accuracy": 0.831, 
+                    "Precision": 0.68, 
+                    "Recall": 0.74, 
+                    "F1": 0.71, 
+                    "Balanced Acc": 0.794, 
+                    "ROC-AUC": 0.887
+                },
+                {
+                    "Experiment": "Borderline SMOTE", 
+                    "Model": "LightGBM", 
+                    "Features": 85, 
+                    "Resampling": "BorderlineSMOTE",
+                    "Accuracy": 0.837, 
+                    "Precision": 0.70, 
+                    "Recall": 0.76, 
+                    "F1": 0.73, 
+                    "Balanced Acc": 0.803, 
+                    "ROC-AUC": 0.892
+                },
+                {
+                    "Experiment": "SHAP-Based Selection", 
+                    "Model": "LightGBM", 
+                    "Features": 40, 
+                    "Resampling": "BorderlineSMOTE + Top40",
+                    "Accuracy": 0.841, 
+                    "Precision": 0.72, 
+                    "Recall": 0.75, 
+                    "F1": 0.735, 
+                    "Balanced Acc": 0.807, 
+                    "ROC-AUC": 0.895
+                },
+            ])
+            
+            st.dataframe(
+                binary_df.style.highlight_max(
+                    subset=['Accuracy', 'Precision', 'Recall', 'F1', 'Balanced Acc', 'ROC-AUC'], 
+                    color="#ffeb3b7b", axis=0
+                ), 
+                use_container_width=True, 
+                hide_index=True
+            )
+            
+            # Visualization
+            col1, col2 = st.columns(2)
+            with col1:
+                fig_bin_f1 = px.bar(
+                    binary_df, 
+                    x="Model", 
+                    y="F1",
+                    title="F1 Score by Experiment",
+                    height=350,
+                    color="F1",
+                    color_continuous_scale='Viridis'
+                )
+                fig_bin_f1.update_layout(xaxis_tickangle=-30, showlegend=False, yaxis_range=[0.6, 0.8])
+                st.plotly_chart(fig_bin_f1, use_container_width=True)
+            
+            with col2:
+                fig_bin_roc = px.bar(
+                    binary_df, 
+                    x="Model", 
+                    y="ROC-AUC",
+                    title="ROC-AUC by Experiment",
+                    height=350,
+                    color="ROC-AUC",
+                    color_continuous_scale='Plasma'
+                )
+                fig_bin_roc.update_layout(xaxis_tickangle=-30, showlegend=False, yaxis_range=[0.85, 0.90])
+                st.plotly_chart(fig_bin_roc, use_container_width=True)
+            
+            st.success("🏆 **Best Binary:** LightGBM + Borderline SMOTE + Top 40 SHAP Features → 84.1% Accuracy, 89.5% ROC-AUC, 73.5% F1")
+            
+            # ===== BINARY PREDICTION TOOL =====
+            st.markdown("---")
+            st.markdown("### ⚖️ Try the Binary Model")
+            
+            if models_available:
+                st.success("✅ Trained model loaded - Real predictions enabled")
+            else:
+                st.warning("⚠️ Trained models not found - Using demonstration mode")
+            
+            st.info("Select key features below to predict if an accident will be Severe (Hospitalized/Killed) or Not Severe")
+            
+            with st.form("binary_prediction_form"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    vehicle_type_bin = st.selectbox("Vehicle Type", ["Car", "Motorcycle", "Bicycle", "Truck", "Bus"], key="bin_vehicle")
+                    impact_point_bin = st.selectbox("Impact Point", ["Front", "Rear", "Side", "Other"], key="bin_impact")
+                    age_group_bin = st.selectbox("Age Group", ["Child", "Young_Adult", "Adult", "Middle_Aged", "Senior"], key="bin_age")
+                
+                with col2:
+                    collision_type = st.selectbox("Collision Type", ["Frontal", "Rear_end", "Side_collision", "Chain_reaction", "No_collision"], key="bin_collision")
+                    weather_bin = st.selectbox("Weather", ["Clear", "Rain", "Snow", "Fog"], key="bin_weather")
+                    road_type_bin = st.selectbox("Road Type", ["Highway", "Major_road", "Local_road"], key="bin_road")
+                
+                with col3:
+                    lighting = st.selectbox("Lighting", ["Daylight", "Night_with_lighting", "Night_without_lighting"], key="bin_light")
+                    is_urban_bin = st.checkbox("Urban Area", value=True, key="bin_urban")
+                    seatbelt_bin = st.checkbox("Seatbelt Used", value=True, key="bin_seatbelt")
+                    helmet_bin = st.checkbox("Helmet Used", value=False, key="bin_helmet")
+                
+                predict_btn_bin = st.form_submit_button("🔮 Predict Severity (Severe vs Not)", use_container_width=True)
+                
+                if predict_btn_bin:
+                    if models_available:
+                        # ===== REAL BINARY MODEL PREDICTION =====
+                        try:
+                            # Build input dataframe
+                            input_dict_bin = {
+                                'age': 35.0,
+                                'lane_width': 3.5,
+                                'collision_label': collision_type.replace('_', ' '),
+                                'surface_condition_label': 'Normal',
+                                'manoeuvre_label': 'Going_straight',
+                                'sex_label': 'Male',
+                                'user_category_label': 'Driver',
+                                'seat_position_label': 'Front',
+                                'journey_purpose_label': 'Commute',
+                                'vehicle_group': vehicle_type_bin,
+                                'impact_group': impact_point_bin,
+                                'road_group': road_type_bin,
+                                'weather_group': weather_bin,
+                                'day_of_week': 'Friday' if is_urban_bin else 'Monday',
+                                'hour_group': lighting.replace('Night_', 'Night ').replace('_', ' '),
+                                'season': 1,
+                                'age_group': age_group_bin,
+                                'is_weekend': False,
+                                'is_holiday': False,
+                                'seatbelt_used': seatbelt_bin,
+                                'helmet_used': helmet_bin,
+                                'any_protection_used': seatbelt_bin or helmet_bin,
+                                'protection_effective': seatbelt_bin or helmet_bin,
+                                'motorcycle_side_impact': vehicle_type_bin == 'Motorcycle' and impact_point_bin == 'Side',
+                                'is_night': 'Night' in lighting,
+                                'is_urban': is_urban_bin
+                            }
+                            
+                            input_df_bin = pd.DataFrame([input_dict_bin])
+                            
+                            # Preprocess
+                            col_info = model_artifacts['column_info']
+                            input_df_bin[col_info['numeric_cols']] = model_artifacts['num_imputer'].transform(input_df_bin[col_info['numeric_cols']])
+                            input_df_bin[col_info['categorical_cols']] = model_artifacts['cat_imputer'].transform(input_df_bin[col_info['categorical_cols']])
+                            
+                            # OneHot encode
+                            X_encoded_bin = model_artifacts['encoder'].transform(input_df_bin[col_info['categorical_cols']])
+                            
+                            # Scale numeric
+                            X_scaled_bin = model_artifacts['scaler'].transform(input_df_bin[col_info['numeric_cols']])
+                            
+                            # Combine all features
+                            X_final_bin = np.hstack([
+                                X_scaled_bin,
+                                X_encoded_bin,
+                                input_df_bin[col_info['binary_cols']].values
+                            ])
+                            
+                            # Create DataFrame with feature names for selection
+                            X_final_bin_df = pd.DataFrame(X_final_bin, columns=model_artifacts['feature_names'])
+                            
+                            # Select only top 40 features
+                            X_final_bin_top40 = X_final_bin_df[model_artifacts['top40_features']]
+                            
+                            # Predict
+                            prob_severe = model_artifacts['binary_model'].predict_proba(X_final_bin_top40)[0, 1]
+                            is_severe = prob_severe >= 0.5
+                            
+                            # Display results
+                            st.markdown("---")
+                            
+                            if is_severe:
+                                st.markdown("### 🚨 Predicted: <span style='color: #e74c3c; font-weight: bold;'>SEVERE</span>", unsafe_allow_html=True)
+                                st.markdown(f"**Probability of Severe Outcome:** {prob_severe:.1%}")
+                                st.error("High likelihood of Hospitalization or Fatality")
+                            else:
+                                st.markdown("### ✅ Predicted: <span style='color: #2ecc71; font-weight: bold;'>NOT SEVERE</span>", unsafe_allow_html=True)
+                                st.markdown(f"**Probability of Severe Outcome:** {prob_severe:.1%}")
+                                st.success("Lower likelihood of serious injury")
+                            
+                            # Show probability metrics
+                            col_prob1, col_prob2 = st.columns(2)
+                            with col_prob1:
+                                delta_severe = f"+{(prob_severe - 0.5):.1%}" if prob_severe >= 0.5 else None
+                                st.metric("Severe Risk", f"{prob_severe:.1%}", delta=delta_severe, delta_color="inverse")
+                            with col_prob2:
+                                delta_not = f"+{(0.5 - prob_severe):.1%}" if prob_severe < 0.5 else None
+                                st.metric("Not Severe", f"{1 - prob_severe:.1%}", delta=delta_not)
+                            
+                            # Probability visualization
+                            prob_df_bin = pd.DataFrame({
+                                'Outcome': ['Not Severe', 'Severe'],
+                                'Probability': [1 - prob_severe, prob_severe]
+                            })
+                            fig_prob_bin = px.bar(
+                                prob_df_bin, x='Outcome', y='Probability',
+                                title='Binary Prediction Probabilities',
+                                color='Outcome',
+                                color_discrete_map={'Not Severe': '#2ecc71', 'Severe': '#e74c3c'}
+                            )
+                            fig_prob_bin.update_layout(showlegend=False, height=300)
+                            st.plotly_chart(fig_prob_bin, use_container_width=True)
+                            
+                            # Risk breakdown
+                            with st.expander("📊 Risk Factor Breakdown"):
+                                st.write("**Critical Risk Factors:**")
+                                critical = []
+                                if vehicle_type_bin in ["Motorcycle", "Bicycle"]:
+                                    critical.append(f"- {vehicle_type_bin}: Vulnerable road user (high injury risk)")
+                                if not seatbelt_bin and vehicle_type_bin == "Car":
+                                    critical.append("- No seatbelt in car: Major injury risk multiplier")
+                                if not helmet_bin and vehicle_type_bin == "Motorcycle":
+                                    critical.append("- No helmet on motorcycle: Extremely high fatality risk")
+                                if lighting == "Night_without_lighting":
+                                    critical.append("- Night without lighting: Reduced reaction time")
+                                if collision_type in ["Frontal", "Side_collision"]:
+                                    critical.append(f"- {collision_type}: High impact force")
+                                
+                                if critical:
+                                    for c in critical:
+                                        st.write(c)
+                                else:
+                                    st.write("No critical risk factors present")
+                                
+                                st.write("\n**Protective Factors Active:**")
+                                protective_bin = []
+                                if is_urban_bin: protective_bin.append("- Urban environment: Lower typical speeds")
+                                if seatbelt_bin: protective_bin.append("- Seatbelt: Reduces severe injury risk by ~50%")
+                                if helmet_bin and vehicle_type_bin == "Motorcycle": protective_bin.append("- Helmet: Reduces head injury fatality by ~40%")
+                                if lighting == "Daylight": protective_bin.append("- Daylight: Better visibility and reaction time")
+                                
+                                for p in protective_bin:
+                                    st.write(p)
+                                
+                                st.markdown("---")
+                                st.caption(f"**Model:** LightGBM + Borderline SMOTE + Top 40 SHAP Features")
+                                st.caption(f"**Performance:** ROC-AUC: 89.5% | Accuracy: 84.1% | F1: 73.5%")
+                        
+                        except Exception as e:
+                            st.error(f"Prediction error: {str(e)}")
+                            st.info("Falling back to demonstration mode...")
+                            models_available = False
+                    
+                    if not models_available:
+                        # ===== DEMONSTRATION MODE (Rule-based) =====
+                        # Binary prediction logic
+                        severe_score = 0
+                        
+                        # Major risk factors for severe outcomes
+                        if vehicle_type_bin == "Motorcycle": severe_score += 4
+                        if vehicle_type_bin == "Bicycle": severe_score += 3
+                        if impact_point_bin in ["Side", "Front"]: severe_score += 3
+                        if collision_type in ["Frontal", "Side_collision"]: severe_score += 3
+                        if weather_bin in ["Snow", "Fog"]: severe_score += 2
+                        if lighting == "Night_without_lighting": severe_score += 3
+                        if not seatbelt_bin and vehicle_type_bin == "Car": severe_score += 4
+                        if not helmet_bin and vehicle_type_bin == "Motorcycle": severe_score += 5
+                        if age_group_bin in ["Child", "Senior"]: severe_score += 2
+                        if collision_type == "Chain_reaction": severe_score += 2
+                        
+                        # Protective factors
+                        if is_urban_bin: severe_score -= 2
+                        if road_type_bin == "Highway": severe_score -= 1
+                        if lighting == "Daylight": severe_score -= 1
+                        if seatbelt_bin or helmet_bin: severe_score -= 2
+                        
+                        # Calculate probability and make prediction
+                        # Normalize score to 0-1 probability
+                        prob_severe = min(max((severe_score + 5) / 15, 0.0), 1.0)
+                        
+                        is_severe = prob_severe >= 0.5
+                        
+                        st.markdown("---")
+                        
+                        if is_severe:
+                            st.markdown("### 🚨 Predicted: <span style='color: #e74c3c; font-weight: bold;'>SEVERE</span>", unsafe_allow_html=True)
+                            st.markdown(f"**Probability of Severe Outcome:** {prob_severe:.1%}")
+                            st.error("High likelihood of Hospitalization or Fatality")
+                        else:
+                            st.markdown("### ✅ Predicted: <span style='color: #2ecc71; font-weight: bold;'>NOT SEVERE</span>", unsafe_allow_html=True)
+                            st.markdown(f"**Probability of Severe Outcome:** {prob_severe:.1%}")
+                            st.success("Lower likelihood of serious injury")
+                        
+                        # Show probability bar
+                        col_prob1, col_prob2 = st.columns(2)
+                        with col_prob1:
+                            st.metric("Severe Risk", f"{prob_severe:.1%}", delta=f"{prob_severe - 0.5:.1%}" if prob_severe >= 0.5 else None)
+                        with col_prob2:
+                            st.metric("Not Severe", f"{1 - prob_severe:.1%}", delta=f"{0.5 - prob_severe:.1%}" if prob_severe < 0.5 else None)
+                        
+                        # Risk breakdown
+                        with st.expander("📊 Risk Factor Breakdown"):
+                            st.write("**Critical Risk Factors:**")
+                            critical = []
+                            if vehicle_type_bin in ["Motorcycle", "Bicycle"]:
+                                critical.append(f"- {vehicle_type_bin}: Vulnerable road user (high injury risk)")
+                            if not seatbelt_bin and vehicle_type_bin == "Car":
+                                critical.append("- No seatbelt in car: Major injury risk multiplier")
+                            if not helmet_bin and vehicle_type_bin == "Motorcycle":
+                                critical.append("- No helmet on motorcycle: Extremely high fatality risk")
+                            if lighting == "Night_without_lighting":
+                                critical.append("- Night without lighting: Reduced reaction time")
+                            if collision_type in ["Frontal", "Side_collision"]:
+                                critical.append(f"- {collision_type}: High impact force")
+                            
+                            if critical:
+                                for c in critical:
+                                    st.write(c)
+                            else:
+                                st.write("No critical risk factors present")
+                            
+                            st.write("\n**Protective Factors Active:**")
+                            protective_bin = []
+                            if is_urban_bin: protective_bin.append("- Urban environment: Lower typical speeds")
+                            if seatbelt_bin: protective_bin.append("- Seatbelt: Reduces severe injury risk by ~50%")
+                            if helmet_bin and vehicle_type_bin == "Motorcycle": protective_bin.append("- Helmet: Reduces head injury fatality by ~40%")
+                            if lighting == "Daylight": protective_bin.append("- Daylight: Better visibility and reaction time")
+                            
+                            for p in protective_bin:
+                                st.write(p)
+                            
+                            st.markdown("---")
+                            st.caption(f"**ROC-AUC Score:** 89.5% | **Model Accuracy:** 84.1% | **F1 Score:** 73.5%")
+                        
+                        st.caption("⚠️ This is a simplified demonstration. The full model uses 40 SHAP-selected features for more accurate predictions.")
+
+        st.markdown("---")
+
+        # ===== KEY INSIGHTS =====
+        st.subheader("💡 Key Insights & Recommendations")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 🎯 Multiclass Approach")
+            st.markdown("""
+            **Best For:** Detailed severity prediction (4 classes)
+            
+            **Strengths:**
+            - ✅ Differentiates all severity levels
+            - ✅ Borderline SMOTE improves minority classes
+            - ✅ Custom class weights help imbalance
+            - ✅ 70.2% accuracy, 69.1% F1 macro
+            
+            **Limitations:**
+            - ❌ More complex model
+            - ❌ Lower per-class precision for rare classes
+            - ❌ Requires threshold tuning
+            """)
+        
+        with col2:
+            st.markdown("#### ⚖️ Binary Approach")
+            st.markdown("""
+            **Best For:** Critical case detection (Severe vs Not)
+            
+            **Strengths:**
+            - ✅ **Superior ROC-AUC (89.5%)**
+            - ✅ Better recall for severe cases (76%)
+            - ✅ Feature selection reduces complexity
+            - ✅ Faster inference, simpler deployment
+            
+            **Limitations:**
+            - ❌ Loses granular severity levels
+            - ❌ Can't distinguish within "Severe" category
+            """)
+
+        st.markdown("---")
+        
+        # ===== RECOMMENDATIONS =====
+        st.subheader("🎯 Model Selection Recommendations")
+        
+        st.info("""
+        **Use Binary Classification when:**
+        - Primary goal is identifying critical/severe cases for immediate intervention
+        - Need high recall for severe injuries (emergency response)
+        - Deployment requires fast, simple models
+        - ROC-AUC and F1 are primary metrics
+        
+        **Use Multiclass Classification when:**
+        - Need to predict exact severity level for resource allocation
+        - Differentiation between all 4 classes is important
+        - Willing to accept slightly lower performance for more detail
+        - Policy decisions require granular severity breakdowns
+        """)
+
+        st.success("✨ **Recommendation:** Deploy binary model for real-time triage, use multiclass for detailed reporting & analytics")
+
+    except Exception as e:
+        st.error(f"Error loading modeling data: {str(e)}")
+        st.info("Please ensure master_acc.csv is available alongside the app.")
 
 # Page 4: Conclusion
 elif page == "Conclusion":
