@@ -1,3 +1,18 @@
+# Dev notes
+
+## Development setup (uv)
+
+### Activate:
+source .venv/bin/activate   # macOS/Linux
+uv sync
+
+### Add package:
+uv add <package>
+
+### Add package for a single group (e.g. `dev`)
+uv add --group dev <package>
+
+
 Project Name
 ==============================
 
