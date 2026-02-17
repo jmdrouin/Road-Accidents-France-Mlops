@@ -15,6 +15,10 @@ uv add --group dev <package>
 ## Run unit tests
 uv run pytest
 
+## (for now) Download and convert data to sql:
+uv run scripts/download_data.py
+uv run scripts/csv_to_sqlite.py
+
 
 Project Name
 ==============================
