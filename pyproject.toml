@@ -10,6 +10,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "kagglehub>=1.0.0",
     "ruff>=0.15.1",
 ]
 test = [
