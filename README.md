@@ -12,6 +12,9 @@ uv add <package>
 ### Add package for a single group (e.g. `dev`)
 uv add --group dev <package>
 
+## Run unit tests
+uv run pytest
+
 
 Project Name
 ==============================
