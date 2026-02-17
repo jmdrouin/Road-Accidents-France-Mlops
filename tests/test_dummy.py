@@ -1,5 +1,8 @@
-def add(x,y):
-    return 5
+from src.data import make_dataset as md
+import pandas as pd
 
-def test_add():
-    assert add(2, 3) == 5
+def test_dummy():
+    df = md.read_some_table()
+    assert isinstance(df, pd.DataFrame)
+    assert len(df) > 0
+    assert df.shape[1] > 0
