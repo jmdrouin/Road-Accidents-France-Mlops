@@ -2,10 +2,8 @@
 ## Import libraries
 
 import pandas as pd
-from src.data import visualization as viz
-
-# Allow calling jupyter's "display" inside normal python script: 
-from IPython.display import display
+import visualization as viz
+SHOW_PLOTS = False
 
 # Import data
 
@@ -14,23 +12,6 @@ holidays = pd.read_csv("data/csv/holidays.csv", encoding="latin-1")
 places = pd.read_csv("data/csv/places.csv", encoding="latin-1", low_memory=False)
 users = pd.read_csv("data/csv/users.csv", encoding="latin-1")
 vehicles = pd.read_csv("data/csv/vehicles.csv", encoding="latin-1")
-
-#data introduction
-
-print("\nCharacteristics head:")
-display(caract.head())
-
-print("\nPlaces head:")
-display(places.head())
-
-print("\nVehicles head:")
-display(vehicles.head())
-
-print("\nUsers head:")
-display(users.head())
-
-print("\nHolidays head:")
-display(holidays.head())
 
 ### CARACT (Characteristics) Dataframe - Auditing, Cleaning and Preprocessing
 #column renaming
@@ -52,19 +33,6 @@ caract = caract.rename(columns={
     "lat":"latitude",
     "long":"longitude"
 })
-caract.head()
-# Auditing
-
-# 1: quick overview
-print("shape:", caract.shape)
-print("\ndtypes (all):\n", caract.dtypes)
-print("\nhead(5):\n", caract.head(5))
-print("\ninfo():")
-caract.info()
-
-# 2: missingness summary (top 30)
-miss = caract.isna().sum().sort_values(ascending=False)
-print(miss.head(30))
 
 # 3: unique counts for carcteristics columns (small preview)
 cols_check = ['accident_id', 'year', 'month', 'day', 'hourminute', 'lighting',
@@ -388,8 +356,6 @@ print(places.isna().sum().sort_values(ascending=False).head(10))
 
 print("\nShape:", places.shape)
 
-print("\nSample (first 5 rows):")
-display(places.head(5))
 places = places.rename(columns={
     "Num_Acc": "accident_id",
     "catr": "road_category",
@@ -553,7 +519,8 @@ for i in range(0, len(check_cols), 2):
     print(places[[col_code, col_label]].drop_duplicates().sort_values(by=col_code))
 ### Visualization
 
-viz.visualize_overview(caract, places)
+if SHOW_PLOTS:
+    viz.visualize_overview(caract, places)
 
 # Flat terrain dominates accident frequency, but not necessarily severity.
 # Slopes deserve attention for targeted safety measures (e.g., signage, speed control).
@@ -789,7 +756,8 @@ print("\nPedestrian State:\n", users["pedestrian_state_label"].value_counts(drop
 print("\nSafety Equipment Type:\n", users["safety_equipment_type"].value_counts(dropna=False))
 print("\nSafety Equipment Usage:\n", users["safety_equipment_usage"].value_counts(dropna=False))
 
-viz.visualize_injury_severity(users)
+if SHOW_PLOTS:
+    viz.visualize_injury_severity(users)
 
 users.columns
 ### Cleaning USERS by Dropping columns before merging in master dataframe for visualisation
@@ -1083,18 +1051,6 @@ acc = acc.merge(holidays, how="left", on="date")
 acc["is_holiday"] = acc["is_holiday"].fillna(0).astype(int)
 acc["holiday_name"] = acc["holiday_name"].fillna("Not a holiday")
 
-print("Final acc shape:", acc.shape)
-print(acc.head())
-# Post-Merge Sanity Checks
-
-# Check duplicates
-print("Duplicate accident IDs:", acc["accident_id"].duplicated().sum())
-
-# Check missing values in key columns
-print(acc[["accident_id","date","vehicle_id"]].isna().sum())
-
-# Quick distribution of holiday flag
-print(acc["is_holiday"].value_counts())
 #What the Results Mean
 #1 -  Duplicate Accident IDs: 593,404
 #- This is expected because of the one-to-many relationships:
@@ -1115,7 +1071,8 @@ print(acc["is_holiday"].value_counts())
 #- Holidays account for ~2% of all accidents.
 #- This is consistent: most accidents happen on regular days, but holidays are still a meaningful subset for analysis.
 
-viz.visualize_user_vehicle(acc)
-viz.visualize_accidents(acc)
+if SHOW_PLOTS:
+    viz.visualize_user_vehicle(acc)
+    viz.visualize_accidents(acc)
 
 acc.to_csv("data/processed/acc.csv", index=True, encoding="utf-8")
