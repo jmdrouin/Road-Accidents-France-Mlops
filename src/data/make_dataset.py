@@ -2,7 +2,7 @@
 ## Import libraries
 
 import pandas as pd
-import visualization as viz
+from src.data import visualization as viz
 
 # Allow calling jupyter's "display" inside normal python script: 
 from IPython.display import display
