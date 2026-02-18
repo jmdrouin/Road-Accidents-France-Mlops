@@ -1,7 +1,6 @@
-#from src.data import make_dataset as md
 import pandas as pd
 from pathlib import Path
-from src.data.make_dataset import make_accidents_dataframe
+# from src.data.make_dataset import make_accidents_dataframe
 
 def test_migration():
     nrows = 10000

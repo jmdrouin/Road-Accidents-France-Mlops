@@ -1,30 +1,6 @@
 from pathlib import Path
-import pandas as pd
 from sqlalchemy import create_engine
-
-def pretty_tracebacks():
-    # Pretty tracebacks:
-    import os, re, sys, traceback
-    from pathlib import Path
-    home_raw = os.path.expanduser("~")
-    home_resolved = str(Path(home_raw).resolve())
-    user_pat = os.environ.get("USER") or os.environ.get("USERNAME") or ""
-    def redact(text: str) -> str:
-        for h in {home_raw, home_resolved}:
-            if h and h != "/":
-                text = text.replace(h, "~")
-        if user_pat:
-            text = re.sub(rf"(/Users/){user_pat}\b", r"\1~", text)
-            text = re.sub(rf"(/home/){user_pat}\b", r"\1~", text)
-        return text
-    def redacting_excepthook(exc_type, exc, tb):
-        text = "".join(traceback.format_exception(exc_type, exc, tb))
-        sys.stderr.write(redact(text))
-    sys.excepthook = redacting_excepthook
-pretty_tracebacks()
-
-
-from pathlib import Path
+import pandas as pd
 import os
 
 def load_folder_to_sqlite(
@@ -45,7 +21,7 @@ def load_folder_to_sqlite(
 
     for csv_file in csv_files:
         table_name = csv_file.stem.lower()
-        print(f"Loading {csv_file.name} → table {table_name}")
+        print(f"Loading {csv_file.name} -> table {table_name}")
 
         print(csv_file)
         df = pd.read_csv(csv_file, encoding=encoding, sep=delimiter, low_memory=False)
