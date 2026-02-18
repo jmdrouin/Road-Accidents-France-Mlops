@@ -8,7 +8,7 @@ import src.data.cleanup_places as cleanup_places
 import src.data.cleanup_users as cleanup_users
 import src.data.cleanup_vehicles as cleanup_vehicles
 import src.data.cleanup_holidays as cleanup_holidays
-
+from sqlalchemy import create_engine
 
 # TODO: Use sql instead?
 
@@ -49,6 +49,16 @@ def make_accidents_dataframe_from_csv():
         holidays = pd.read_csv("data/csv/holidays.csv", encoding="latin-1")
     )
 
+def make_accidents_dataframe_from_sql():
+    engine = create_engine("sqlite:///data/sql/accidents.db")
+    return combine_to_accidents_dataframe(
+        caract = pd.read_sql_table("caracteristics", con=engine),
+        places = pd.read_sql_table("places", con=engine),
+        users = pd.read_sql_table("users", con=engine),
+        vehicles = pd.read_sql_table("vehicles", con=engine),
+        holidays = pd.read_sql_table("holidays", con=engine)
+    )
+
 def visualize(
     caract: pd.DataFrame,
     places: pd.DataFrame,
@@ -62,7 +72,8 @@ def visualize(
     viz.visualize_accidents(acc)
 
 if __name__ == "__main__":
-    acc = make_accidents_dataframe_from_csv()
+    #acc = make_accidents_dataframe_from_csv()
+    acc = make_accidents_dataframe_from_sql()
     output = "data/processed/acc.csv"
     print(f"Writing to {output}")
     acc.to_csv(output, index=True, encoding="utf-8")
