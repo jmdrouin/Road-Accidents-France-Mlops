@@ -1,20 +1,25 @@
 #from src.data import make_dataset as md
 import pandas as pd
 from pathlib import Path
+from src.data.make_dataset import make_accidents_dataframe
 
 def test_migration():
+    nrows = 10000
+
     reference_file = Path("original_project/acc.csv")
-    new_file = Path("data/processed/acc.csv")
-
     assert reference_file.exists(), f"Missing file: {reference_file}. Run ipynb file to generate it."
-    assert new_file.exists(), f"Missing file: {new_file}"
 
-    assert(reference_file.stat().st_size == new_file.stat().st_size)
+    # new_df = make_accidents_dataframe().head(nrows).reset_index(drop=True)
+    new_df = pd.read_csv("data/processed/acc.csv", nrows=nrows).reset_index(drop=True)
+    old_df = pd.read_csv(reference_file, nrows=nrows).reset_index(drop=True)
 
-    # Compare first rows of each file
-    df_old = pd.read_csv(reference_file, nrows=10000).reset_index(drop=True)
-    df_new = pd.read_csv(new_file, nrows=10000).reset_index(drop=True)
-    pd.testing.assert_frame_equal(df_old, df_new)
+    missing_columns = set(old_df.columns) - set(new_df.columns)
+    assert not missing_columns, "Column missing"
+
+    unexpected_columns = set(new_df.columns) - set(old_df.columns)
+    assert not unexpected_columns, "Unexpected column found"
+
+    pd.testing.assert_frame_equal(new_df, old_df)
 
 # TODO TESTS:
 # - There are no missing values in *_id and dates and is_holiday

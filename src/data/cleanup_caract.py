@@ -185,7 +185,6 @@ def cleanup_caract(caract: pd.DataFrame):
         caract["time_hhmm"] = caract.apply(lambda r: f"{int(r['hour']):02d}:{int(r['minute']):02d}" 
                                 if pd.notna(r['hour']) and pd.notna(r['minute']) else pd.NA, axis=1)
 
-    print("hour non-null:", caract["hour"].notna().sum())
     # time_of_day: based on hour
     def get_time_of_day(h):
         if pd.isna(h): return pd.NA
@@ -247,39 +246,6 @@ def cleanup_caract(caract: pd.DataFrame):
         if c in caract.columns:
             caract[c] = caract[c].astype("bool")
 
-    # quick summary
-    print("\nDtypes after conversion:\n", caract.dtypes)
-    print("\nMissing values per column (top 10):\n", caract.isna().sum().sort_values(ascending=False).head(10))
-    # === Final cleaning checks for caract ===
-
-    print("=== Schema (dtypes) ===")
-    print(caract.dtypes)
-
-    print("\n=== Shape ===")
-    print("Rows:", caract.shape[0], "| Columns:", caract.shape[1])
-
-    print("\n=== Missing values (top 15) ===")
-    print(caract.isna().sum().sort_values(ascending=False).head(15))
-
-    print("\n=== Duplicate check ===")
-    dup_count = caract["accident_id"].duplicated().sum()
-    print("Duplicate accident_id count:", dup_count)
-
-
-    print("\n=== Category checks ===")
-    for c in ["lighting_label","urban_label","intersection_label",
-            "weather_label","collision_label","gps_label",
-            "time_of_day","season"]:
-        if c in caract.columns:
-            print(f"{c}: {caract[c].nunique(dropna=True)} categories")
-
-    print("\n=== Sample derived features ===")
-    print(caract[["date","hour","time_of_day","is_weekend","season"]].head(10))
-    ### some visualization plots
-
-    caract.columns
-    ### Cleaning CARACT by Dropping columns before merging in master dataframe for visualisation
-
     drop_cols_caract = [
         "hourminute", "lighting", "urban_area", "intersection", "weather", "collision_type","commune_code",
         "address", "gps", "latitude", "longitude", "department"
@@ -287,7 +253,6 @@ def cleanup_caract(caract: pd.DataFrame):
 
     caract = caract.drop(columns=[c for c in drop_cols_caract if c in caract.columns])
 
-    print("Post-drop shape:", caract.shape)
-    print("Remaining columns:", caract.columns.tolist())
+    caract = caract.drop_duplicates(subset="accident_id")
 
     return caract

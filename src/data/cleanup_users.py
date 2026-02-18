@@ -19,25 +19,7 @@ def cleanup_users(users: pd.DataFrame):
     }
 
     users = users.rename(columns=rename_map)
-    print("Renamed columns:", list(users.columns))
-    # Inspect users dataframe
-    print("Columns:", list(users.columns))
 
-    print("\nDtypes:")
-    print(users.dtypes)
-
-    print("\nTop missing (up to 10):")
-    print(users.isna().sum().sort_values(ascending=False).head(10))
-
-    print("\nShape:", users.shape)
-
-    print("\nSample (first 5 rows):")
-    print(users.head(5).to_string(index=False))
-
-    for c in users.columns:
-        if c in users.columns:
-            print(f"\n{c} -- n_unique:", users[c].nunique(dropna=True))
-            print("value_sample:", users[c].dropna().sort_values().unique()[:25])
     #   safety_equipment_map = {
     #   0:  "None",
         
@@ -183,16 +165,6 @@ def cleanup_users(users: pd.DataFrame):
     # Safety equipment split into two columns
     users["safety_equipment_type"] = users["safety_equipment"].map(type_map)
     users["safety_equipment_usage"] = users["safety_equipment"].map(usage_map)
-    # Check for unmapped codes (NaN values)
-    print("\n--- Missing Labels Check ---")
-    for col in [
-        "sex_label", "user_category_label", "injury_severity_label",
-        "seat_position_label", "journey_purpose_label",
-        "pedestrian_location_label", "pedestrian_action_label",
-        "pedestrian_state_label", "safety_equipment_type", "safety_equipment_usage"
-    ]:
-        missing = users[col].isna().sum()
-        print(f"{col}: {missing} unmapped values")
 
     # Fill NaN values with "Unknown" for all mapped columns
     users["seat_position_label"] = users["seat_position_label"].fillna("Unknown")
@@ -209,5 +181,7 @@ def cleanup_users(users: pd.DataFrame):
     ]
 
     users = users.drop(columns=[c for c in drop_cols_users if c in users.columns])
+
+    users = users.drop_duplicates(subset=["accident_id","vehicle_id"])
 
     return users

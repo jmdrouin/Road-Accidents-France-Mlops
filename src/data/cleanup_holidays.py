@@ -16,4 +16,9 @@ def cleanup_holidays(holidays: pd.DataFrame):
     # Step 5: clean holiday_name
     holidays["holiday_name"] = holidays["holiday_name"].str.strip().fillna("None")
 
+    holidays = holidays.drop_duplicates(subset="date")
+
+    #- Ensure is_holiday is binary (0/1) and no NaNs remain.
+    holidays["is_holiday"] = holidays["is_holiday"].fillna(1).astype(int)
+
     return holidays

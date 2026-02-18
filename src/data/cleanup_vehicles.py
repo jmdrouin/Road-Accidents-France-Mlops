@@ -16,35 +16,6 @@ def cleanup_vehicles(vehicles: pd.DataFrame):
     }
 
     vehicles = vehicles.rename(columns=rename_map)
-    print("Renamed columns:", list(vehicles.columns))
-    #Auditing
-
-    # Basic structure and memory usage
-    print(vehicles.info())
-
-    print("\nDtypes:")
-    print(vehicles.dtypes)
-
-    print("\nTop missing (up to 10):")
-    print(vehicles.isna().sum().sort_values(ascending=False).head(10))
-
-    print("\nSample (first 5 rows):")
-    print(vehicles.head(5).to_string(index=False))
-
-    # Shape and column names
-    print("Shape:", vehicles.shape)
-    print("Columns:", vehicles.columns.tolist())
-
-
-    for c in vehicles.columns:
-        if c in vehicles.columns:
-            print(f"\n{c} -- n_unique:", vehicles[c].nunique(dropna=True))
-            print("value_sample:", vehicles[c].dropna().sort_values().unique()[:35])
-
-    # Missing values per column
-    print(vehicles.isna().sum())
-    #For vehicle_category -- n_unique: 33, fixed_obstacle -- n_unique: 17 and manoeuvre -- n_unique: 25 -
-    #instead of keeping dozens of fine‑grained codes, we can group them into broader, analysis‑friendly categories.
 
     #what we have is 
     #vehicle_category_map = {1: "Bicycle",2: "Moped <50cc",3: "Motorcycle <125cc",4: "Motorcycle >125cc",5: "Motorcycle with sidecar",6: "Light quadricycle",7: "Passenger car",
@@ -138,23 +109,6 @@ def cleanup_vehicles(vehicles: pd.DataFrame):
     vehicles["impact_point_label"] = vehicles["impact_point"].map(impact_point_map)
     vehicles["manoeuvre_label"] = vehicles["manoeuvre"].map(manoeuvre_grouped)
 
-    # Check if any labels are missing (NaN after mapping)
-    print("\n--- Missing label counts ---")
-    print("Traffic direction:", vehicles["traffic_direction_label"].isna().sum())
-    print("Vehicle category:", vehicles["vehicle_category_label"].isna().sum())
-    print("Fixed obstacle:", vehicles["fixed_obstacle_label"].isna().sum())
-    print("Mobile obstacle:", vehicles["mobile_obstacle_label"].isna().sum())
-    print("Impact point:", vehicles["impact_point_label"].isna().sum())
-    print("Manoeuvre:", vehicles["manoeuvre_label"].isna().sum())
-
-    # Check unique values in each new label column
-    print("\n--- Unique labels ---")
-    print("Traffic direction:", vehicles["traffic_direction_label"].unique())
-    print("Vehicle category:", vehicles["vehicle_category_label"].unique())
-    print("Fixed obstacle:", vehicles["fixed_obstacle_label"].unique())
-    print("Mobile obstacle:", vehicles["mobile_obstacle_label"].unique())
-    print("Impact point:", vehicles["impact_point_label"].unique())
-    print("Manoeuvre:", vehicles["manoeuvre_label"].unique())
     ## more cleaning
 
     # 1. filling Nans
@@ -168,14 +122,6 @@ def cleanup_vehicles(vehicles: pd.DataFrame):
     # 2. Check for outliers in occupants
     vehicles["occupants_group"] = vehicles["occupants"].apply(lambda x: str(x) if x <= 10 else "10+")
 
-    # 3. Check duplicates
-    duplicates = vehicles.duplicated(subset=["accident_id", "vehicle_id"]).sum()
-    print("Duplicate rows:", duplicates)
-
-    #4. checking datatypes
-    print("\n")
-    print(vehicles.dtypes)
-
     ### Cleaning VEHICLES by Dropping columns before merging in master dataframe for visualisation
 
     drop_cols_vehicles = [
@@ -186,7 +132,7 @@ def cleanup_vehicles(vehicles: pd.DataFrame):
 
     vehicles = vehicles.drop(columns=[c for c in drop_cols_vehicles if c in vehicles.columns])
 
-    print("Post-drop shape:", vehicles.shape)
-    print("Remaining columns:", vehicles.columns.tolist())
+    # Drop duplicate entries
+    vehicles = vehicles.drop_duplicates(subset=["accident_id","vehicle_id"])
 
     return vehicles

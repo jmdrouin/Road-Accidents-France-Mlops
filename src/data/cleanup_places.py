@@ -139,12 +139,6 @@ def cleanup_places(places: pd.DataFrame):
         "school_zone", "school_zone_label"
     ]
 
-    for i in range(0, len(check_cols), 2):
-        col_code = check_cols[i]
-        col_label = check_cols[i+1]
-        print(f"\n{col_code} → {col_label}")
-        print(places[[col_code, col_label]].drop_duplicates().sort_values(by=col_code))
-
     drop_cols_places = [
         "road_category", "road_number", "road_number_index", "road_number_suffix",
         "traffic_regime", "milestone", "milestone_distance",
@@ -153,5 +147,7 @@ def cleanup_places(places: pd.DataFrame):
     ]
 
     places = places.drop(columns=[c for c in drop_cols_places if c in places.columns])
+
+    places = places.drop_duplicates(subset="accident_id")
 
     return places
