@@ -96,6 +96,7 @@ def cleanup_caract(caract: pd.DataFrame):
     ### CARACT (Characteristics) Dataframe - Auditing, Cleaning and Preprocessing
     #column renaming
 
+    print("  [caract] applying name changes")
     caract = caract.rename(columns=Maps.columns)
 
     # Apply maps safely (only for existing columns)
@@ -113,6 +114,8 @@ def cleanup_caract(caract: pd.DataFrame):
         caract["gps_label"] = caract["gps"].map(Maps.gps).fillna("Unknown").astype("category")
 
     #latitude and longitude
+
+    print("  [caract] fixing geographic data")
 
     # 1) Clean raw columns robustly
     caract["longitude"] = ( caract["longitude"].astype(str).str.strip().str.replace(",", ".", regex=False))
@@ -167,6 +170,8 @@ def cleanup_caract(caract: pd.DataFrame):
 
     # year_month_day_date (expanding 2-digit years safely and build date)
 
+    print("  [caract] fixing datetime data")
+
     caract["year"] = pd.to_numeric(caract["year"], errors="coerce")
     def expand_year(x):
         if pd.isna(x): return pd.NA
@@ -207,6 +212,7 @@ def cleanup_caract(caract: pd.DataFrame):
     caract["season"] = caract["month"].apply(get_season).astype("category")
     # unified dtype conversion applied directly to caract
 
+    print("  [caract] finishing cleanup")
     # accident_id stays int64
     caract["accident_id"] = caract["accident_id"].astype("int64")
 
