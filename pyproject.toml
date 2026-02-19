@@ -5,13 +5,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "lazypredict>=0.2.13",
     "matplotlib>=3.10.8",
     "pandas>=3.0.0",
+    "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
 ]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=7.2.0",
     "ipython>=9.10.0",
     "kagglehub>=1.0.0",
     "ruff>=0.15.1",

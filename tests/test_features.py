@@ -1,7 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from sqlalchemy import create_engine
-from src.data.make_dataset import combine_to_accidents_dataframe
+from src.features.build_features import combine_to_accidents_dataframe
 
 import pandas as pd
 
@@ -25,7 +24,7 @@ def assert_frames_equal_show_col(left: pd.DataFrame, right: pd.DataFrame) -> Non
             raise AssertionError(f"Mismatch in column: {col}\n{e}") from e
 
 
-def test_migration():
+def test_aggregated_data_is_the_same_as_through_jupyter_version():
     # Open reference file (a test file built from the top 5000 rows of the 5 raw csv tables)
     reference_file = Path("tests/resources/reference_file_master_acc.csv")
     assert reference_file.exists(), f"Missing file: {reference_file}. Run ipynb file to generate it."

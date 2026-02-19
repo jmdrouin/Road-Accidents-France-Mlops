@@ -1,3 +1,7 @@
+"""
+Methods for visualization copied from "Step 1..." jupyter notebook.
+They take cleaned up dataframes as inputs.
+"""
 
 import seaborn as sns
 import pandas as pd
