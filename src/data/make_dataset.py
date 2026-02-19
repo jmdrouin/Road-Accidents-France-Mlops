@@ -8,6 +8,8 @@ import src.data.cleanup_places as cleanup_places
 import src.data.cleanup_users as cleanup_users
 import src.data.cleanup_vehicles as cleanup_vehicles
 import src.data.cleanup_holidays as cleanup_holidays
+import src.data.prepare_accidents_data as prepare_accidents_data
+import src.data.sql as sql
 from sqlalchemy import create_engine
 from tqdm import tqdm
 
@@ -38,9 +40,11 @@ def combine_to_accidents_dataframe(
         .merge(users, how="left", on=["accident_id", "vehicle_id"]) \
         .merge(holidays, how="left", on="date")
 
+    print("Processing aggregated accidents data")
     # Dates absent from the holidays dataframe are just "not a holiday"
     acc["is_holiday"] = acc["is_holiday"].fillna(0).astype(int)
     acc["holiday_name"] = acc["holiday_name"].fillna("Not a holiday")
+    acc = prepare_accidents_data.prepare_accidents_data(acc)
 
     return acc
 
@@ -54,16 +58,8 @@ def make_accidents_dataframe_from_csv():
     )
 
 def make_accidents_dataframe_from_sql():
-    engine = create_engine("sqlite:///data/sql/accidents.db")
-
     tables = ["caracteristics", "places", "users", "vehicles", "holidays"]
-    result = {}
-    for table in tables:
-        chunks = pd.read_sql_table(table, con=engine, chunksize=50_000)
-        dfs = []
-        for chunk in tqdm(chunks, desc=f"Loading {table}"):
-            dfs.append(chunk)
-        result[table] = pd.concat(dfs, ignore_index=True)
+    result = sql.read_as_dataframes("data/sql/accidents.db", tables)
 
     print("Processing data")
     return combine_to_accidents_dataframe(
@@ -85,21 +81,7 @@ if __name__ == "__main__":
     write_to_sql = True
     acc = make_accidents_dataframe_from_sql()
     if write_to_sql:
-        output = "data/processed/accidents.db"
-        engine = create_engine(f"sqlite:///{output}")
-
-        chunksize = 10_000
-        total = len(acc)
-        with tqdm(total=total, desc="Writing SQL") as pbar:
-            for i in range(0, total, chunksize):
-                acc.iloc[i:i+chunksize].to_sql(
-                    "accidents",
-                    engine,
-                    if_exists="append" if i else "replace",
-                    index=False,
-                )
-                pbar.update(min(chunksize, total - i))
-
+        sql.write_dataframe("accidents", acc, to_file="data/processed/accidents.db")
     else:
         output = "data/processed/acc.csv"
         print(f"Writing to {output}")
