@@ -1,3 +1,6 @@
+
+from src.models.split_and_transform import split_and_transform, Columns
+
 #### LOADING DATA FILE AND LIBRARIES
 import pandas as pd
 import numpy as np
@@ -5,7 +8,6 @@ import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.impute import SimpleImputer
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -15,25 +17,29 @@ from sklearn.metrics import (
     make_scorer
 )
 from sklearn.linear_model import RidgeClassifier, LogisticRegression
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_validate, RandomizedSearchCV
+from sklearn.model_selection import StratifiedKFold, cross_validate, RandomizedSearchCV
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from collections import Counter
 
-from lazypredict.Supervised import LazyClassifier, CLASSIFIERS
 from lightgbm import LGBMClassifier
 
 import matplotlib.pyplot as plt
 import shap
 
-class Config:
-    test_size=0.2
-    random_state=42
+import joblib
+import pickle
+from pathlib import Path
 
-target_cols = ["injury_severity_label"]
-numeric_cols = ["age", "lane_width"]
+# Heavy models to skip
+heavy = {
+    "SVC","NuSVC","QuadraticDiscriminantAnalysis",
+    "LabelPropagation","LabelSpreading",
+    "SelfTrainingClassifier","StackingClassifier",
+    "GaussianProcessClassifier","MLPClassifier"
+}
 
 def get_master_df():
     # TODO: For experiments only. Use the real processed data.
@@ -45,144 +51,14 @@ def get_master_df():
         low_memory=False,
         index_col="accident_id"
     )
-    # Drop rows with missing target:
-    acc = acc.dropna(subset=target_cols)
     return acc
 
 def make_model(acc: pd.DataFrame):
-    X = acc.drop(columns=["injury_severity_label"])
-    y = acc["injury_severity_label"]
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=Config.test_size, random_state=Config.random_state, stratify=y
-    )
-
-    num_imputer = SimpleImputer(strategy="median")
-    X_train[numeric_cols] = num_imputer.fit_transform(X_train[numeric_cols])
-    X_test[numeric_cols] = num_imputer.transform(X_test[numeric_cols])
-
-    # Categorical columns
-    categorical_cols = [
-        "collision_label", "surface_condition_label", "manoeuvre_label",
-        "sex_label", "user_category_label", "seat_position_label", "journey_purpose_label",
-        "vehicle_group", "impact_group", "road_group", "weather_group",
-        "day_of_week", "hour_group", "season"
-    ]
-
-    cat_imputer = SimpleImputer(strategy="most_frequent")
-    X_train[categorical_cols] = cat_imputer.fit_transform(X_train[categorical_cols])
-    X_test[categorical_cols] = cat_imputer.transform(X_test[categorical_cols])
-
-    # Check again for NaNs
-    print("Remaining NaNs in train:", X_train.isna().sum().sum())
-    print("Remaining NaNs in test:", X_test.isna().sum().sum())
-    # Show which columns still have NaNs
-    print("Train NaNs per column:\n", X_train.isna().sum()[X_train.isna().sum() > 0])
-    print("\nTest NaNs per column:\n", X_test.isna().sum()[X_test.isna().sum() > 0])
-    # Ensure dtype is categorical
-    X_train["age_group"] = X_train["age_group"].astype("category")
-    X_test["age_group"] = X_test["age_group"].astype("category")
-
-    # Add "Unknown" to categories if not already present
-    if "Unknown" not in X_train["age_group"].cat.categories:
-        X_train["age_group"] = X_train["age_group"].cat.add_categories(["Unknown"])
-        X_test["age_group"] = X_test["age_group"].cat.add_categories(["Unknown"])
-
-    # Fill NaNs with "Unknown"
-    X_train["age_group"] = X_train["age_group"].fillna("Unknown")
-    X_test["age_group"] = X_test["age_group"].fillna("Unknown")
-
-    # Final check
-    print("Remaining NaNs in train:", X_train.isna().sum().sum())
-    print("Remaining NaNs in test:", X_test.isna().sum().sum())
-    #### Encoding Categorical Features
-
-    # Define categorical columns
-    categorical_cols = [
-        "collision_label", "surface_condition_label", "manoeuvre_label",
-        "sex_label", "user_category_label", "seat_position_label", "journey_purpose_label",
-        "vehicle_group", "impact_group", "road_group", "weather_group",
-        "day_of_week", "hour_group", "season", "age_group"
-    ]
-
-    # Initialize encoder
-    encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-
-    # Fit on train, transform both train and test
-    X_train_encoded = encoder.fit_transform(X_train[categorical_cols])
-    X_test_encoded = encoder.transform(X_test[categorical_cols])
-
-    print("Encoded train shape:", X_train_encoded.shape)
-    print("Encoded test shape:", X_test_encoded.shape)
-    #### Scale Numeric Features
-
-    scaler = StandardScaler()
-
-    X_train_scaled = scaler.fit_transform(X_train[numeric_cols])
-    X_test_scaled = scaler.transform(X_test[numeric_cols])
-
-    print("Scaled train shape:", X_train_scaled.shape)
-    print("Scaled test shape:", X_test_scaled.shape)
-    #### Combine All Features
-
-    # Binary columns
-    binary_cols = [
-        "is_weekend", "is_holiday", "seatbelt_used", "helmet_used",
-        "any_protection_used", "protection_effective",
-        "motorcycle_side_impact", "is_night", "is_urban"
-    ]
-
-    # Combine all parts
-    X_train_final = np.hstack([
-        X_train_scaled,          # numeric
-        X_train_encoded,         # categorical
-        X_train[binary_cols].values  # binary flags
-    ])
-
-    X_test_final = np.hstack([
-        X_test_scaled,
-        X_test_encoded,
-        X_test[binary_cols].values
-    ])
-
-    print("Final train shape:", X_train_final.shape)
-    print("Final test shape:", X_test_final.shape)
-    #### Encoding Target Labels 
-    # Encoding Target Labels (y_train & y_test)
-
-
-    label_encoder = LabelEncoder()
-    y_train_enc = label_encoder.fit_transform(y_train)
-    y_test_enc = label_encoder.transform(y_test)
-
-    # Prepare data
-    X_lazy = pd.DataFrame(X_train_final)
-    y_lazy = y_train
-    X_train_lazy, X_test_lazy, y_train_lazy, y_test_lazy = train_test_split(
-        X_lazy, y_lazy, test_size=0.2, random_state=42
-    )
-
-    # Heavy models to skip
-    heavy = {
-        "SVC","NuSVC","QuadraticDiscriminantAnalysis",
-        "LabelPropagation","LabelSpreading",
-        "SelfTrainingClassifier","StackingClassifier",
-        "GaussianProcessClassifier","MLPClassifier"
-    }
-
-    #------------------------------------------------------------------------------------------
-    # Filter CLASSIFIERS (list of tuples) by name
-    safe_classifiers = [(name, model) for name, model in CLASSIFIERS if name not in heavy]
-
-    # Initialize LazyClassifier with filtered list
-    clf = LazyClassifier(
-        verbose=0,
-        ignore_warnings=True,
-        custom_metric=accuracy_score,
-        classifiers=safe_classifiers
-    )
-
-    models, predictions = clf.fit(X_train_lazy, X_test_lazy, y_train_lazy, y_test_lazy)
+    (
+        X_train_final, X_test_final,
+        y_train_enc, y_test_enc,
+        label_encoder, encoder, num_imputer, cat_imputer
+    ) = split_and_transform(acc)
 
     ### Performance Comparisons of top 5 Models with Benchmarking 
     # Running all five models separately in the order of quickest first → heaviest last 
@@ -296,11 +172,11 @@ def make_model(acc: pd.DataFrame):
     #Recovering feature names
 
     # Get categorical feature names from the encoder
-    categorical_feature_names = encoder.get_feature_names_out(categorical_cols)
+    categorical_feature_names = encoder.get_feature_names_out(Columns.categorical)
 
     # Numeric + binary names
-    numeric_feature_names = numeric_cols
-    binary_feature_names = binary_cols
+    numeric_feature_names = Columns.numeric
+    binary_feature_names = Columns.binary
 
     # Combine all names
     feature_names = list(numeric_feature_names) + list(categorical_feature_names) + list(binary_feature_names)
@@ -838,21 +714,18 @@ def make_model(acc: pd.DataFrame):
     print(f"Accuracy: {acc:.4f}")
     print(f"F1 Macro: {f1:.4f}")
     print(f"Balanced Accuracy: {bal_acc:.4f}")
-    ### 🎯 Export Models for Streamlit App
-    import joblib
-    import pickle
-    from pathlib import Path
+
 
     # Create models directory
     Path("models").mkdir(exist_ok=True)
 
     # CRITICAL: Reconstruct feature_names with encoded categorical names
     # Get categorical feature names from the encoder (AFTER encoding)
-    categorical_feature_names = encoder.get_feature_names_out(categorical_cols)
+    categorical_feature_names = encoder.get_feature_names_out(Columns.categorical)
 
     # Numeric + binary names
-    numeric_feature_names = numeric_cols
-    binary_feature_names = binary_cols
+    numeric_feature_names = Columns.numeric
+    binary_feature_names = Columns.binary
 
     # Combine all names in the same order as stacking
     feature_names = list(numeric_feature_names) + list(categorical_feature_names) + list(binary_feature_names)
@@ -881,9 +754,9 @@ def make_model(acc: pd.DataFrame):
     # Save column lists
     with open('models/column_info.pkl', 'wb') as f:
         pickle.dump({
-            'numeric_cols': numeric_cols,
-            'categorical_cols': categorical_cols,
-            'binary_cols': binary_cols
+            'numeric_cols': Columns.numeric,
+            'categorical_cols': Columns.categorical,
+            'binary_cols': Columns.binary
         }, f)
 
     print("\n✅ Multiclass model and preprocessors exported successfully!")
