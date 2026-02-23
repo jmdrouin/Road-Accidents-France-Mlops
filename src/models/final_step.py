@@ -25,6 +25,9 @@ from collections import Counter
 from lazypredict.Supervised import LazyClassifier, CLASSIFIERS
 from lightgbm import LGBMClassifier
 
+import matplotlib.pyplot as plt
+import shap
+
 class Config:
     test_size=0.2
     random_state=42
@@ -47,7 +50,6 @@ def get_master_df():
     return acc
 
 def make_model(acc: pd.DataFrame):
-    x = blob
     X = acc.drop(columns=["injury_severity_label"])
     y = acc["injury_severity_label"]
 
@@ -113,9 +115,6 @@ def make_model(acc: pd.DataFrame):
     print("Encoded train shape:", X_train_encoded.shape)
     print("Encoded test shape:", X_test_encoded.shape)
     #### Scale Numeric Features
-
-    # Numeric columns
-    numeric_cols = ["age", "lane_width"]
 
     scaler = StandardScaler()
 
@@ -410,23 +409,7 @@ def make_model(acc: pd.DataFrame):
 
         return model
 
-    # ---------------------------------------------------------
-    # Train on SMOTE (85 features)
-    # ---------------------------------------------------------
-    lgbm_s85 = train_and_evaluate(
-        X_train_s85, y_train_s85,
-        X_test_lgbm, y_test_enc,
-        model_name="LightGBM (Plain SMOTE - 85 features)"
-    )
 
-    # ---------------------------------------------------------
-    # Train on Borderline SMOTE (85 features)
-    # ---------------------------------------------------------
-    lgbm_bs85 = train_and_evaluate(
-        X_train_bs85, y_train_bs85,
-        X_test_lgbm, y_test_enc,
-        model_name="LightGBM (Borderline SMOTE - 85 features)"
-    )
     ### Modeling Optimization with Feature Importance, PCA, SMOTE & Borderline SMOTE (60) 
     #### Extracting Feature Importance and Subsetting (85->60)
     #Training a quick LightGBM model and Extracting Feature Importance 
@@ -534,7 +517,6 @@ def make_model(acc: pd.DataFrame):
     # Build final DataFrames with feature names
 
     X_train_s60 = pd.DataFrame(X_train_s60, columns=selected_feature_names)
-    y_train_s60 = pd.Series(y_train_s30)
 
     # Inverse transform Borderline-SMOTE output back to original feature space
     X_train_bs60 = pca.inverse_transform(X_train_bs30)
@@ -545,60 +527,8 @@ def make_model(acc: pd.DataFrame):
 
     # Build final DataFrames with feature names
     X_train_bs60 = pd.DataFrame(X_train_bs60, columns=selected_feature_names)
-    y_train_bs60 = pd.Series(y_train_bs30)
     # Inverse transform X_test to original feature space
 
-    X_test_pca_inverse = pca.inverse_transform(X_test_pca)
-    X_test_pca_final = pd.DataFrame(X_test_pca_inverse, columns=selected_feature_names)
-
-    ### TRAINING LGBM (SMOTE & Borderline SMOTE) (60) - Comparison
-
-    # ---------------------------------------------------------
-    # Helper function to train and evaluate a model
-    # ---------------------------------------------------------
-    def train_and_evaluate(X_train, y_train, X_test, y_test, model_name):
-        print(f"\n==================== {model_name} ====================")
-
-        model = LGBMClassifier(
-            n_estimators=500,
-            learning_rate=0.05,
-            num_leaves=31,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            n_jobs=-1,
-            is_unbalance=True,
-            force_row_wise=True
-        )
-
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-
-        print("\nClassification Report:")
-        print(classification_report(y_test, y_pred))
-
-        print("\nConfusion Matrix:")
-        print(confusion_matrix(y_test, y_pred))
-
-        return model
-
-
-    # ---------------------------------------------------------
-    # Train on Plain SMOTE (PCA 60 features)
-    # ---------------------------------------------------------
-    lgbm_s60 = train_and_evaluate(
-        X_train_s60, y_train_s60,
-        X_test_pca_final, y_test_enc,
-        model_name="LightGBM (Plain SMOTE - PCA 60 features)"
-    )
-
-    # ---------------------------------------------------------
-    # Train on Controlled SMOTE (PCA 60 features)
-    # ---------------------------------------------------------
-    lgbm_bs60 = train_and_evaluate(
-        X_train_bs60, y_train_bs60,
-        X_test_pca_final, y_test_enc,
-        model_name="LightGBM (Borderline SMOTE - PCA 60 features)"
-    )
     ### TRAINING the final model (lgbm_bs85 on the full Borderline‑SMOTE dataset (X_train_bs85, y_train_bs85))
 
     # ------------------------------
@@ -796,11 +726,6 @@ def make_model(acc: pd.DataFrame):
     ### PCA PROJECTIONS
     # Fitting PCA on the original training Datasets
 
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.decomposition import PCA
-    import matplotlib.pyplot as plt
-    import numpy as np
-
     # Scale original train and test sets
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train_final)
@@ -850,15 +775,12 @@ def make_model(acc: pd.DataFrame):
     print("Explained variance ratio:", pca.explained_variance_ratio_)
     print("Total variance explained:", pca.explained_variance_ratio_.sum())
     ### SHAP
-    import shap
 
     explainer = shap.TreeExplainer(lgbm_final)
     shap_values = explainer.shap_values(X_test_lgbm)
     for c in range(4):
         print(f"\n=== SHAP Summary Plot for Class {c} ===")
         shap.summary_plot(shap_values[c], X_test_lgbm, show=False)
-    import numpy as np
-    import pandas as pd
 
     feature_importance = np.mean(np.abs(shap_values), axis=1)  # shape: (4, n_features)
 
@@ -881,35 +803,6 @@ def make_model(acc: pd.DataFrame):
     print("\n=== Global SHAP Feature Importance (Averaged Across Classes) ===")
     print(imp_df.head(20))
 
-    ### SHAP feature‑importance barplot 
-    import shap
-
-    #  final tuned LightGBM model
-    explainer = shap.TreeExplainer(best_lgbm)
-
-    # SHAP values for each class
-    shap_values = explainer.shap_values(X_test_lgbm)
-
-    shap.summary_plot(
-        shap_values,
-        X_test_lgbm,
-        plot_type="bar",
-        class_names=["0", "1", "2", "3"]
-    )
-    # Take a 20k sample for SHAP
-    sample_idx = np.random.choice(X_train_bs85.shape[0], 20000, replace=False)
-    X_shap_sample = X_train_bs85[sample_idx]
-
-    explainer = shap.TreeExplainer(best_lgbm)
-    shap_values = explainer.shap_values(X_shap_sample)
-
-    shap.summary_plot(
-        shap_values,
-        X_shap_sample,
-        feature_names=feature_names,
-        plot_type="bar",
-        max_display=30
-    )
     ### Implement SHAP findings and retrain the model
     # Compute mean(|SHAP|) across classes (multiclass-safe)
     mean_shap = np.mean([np.abs(sv).mean(axis=0) for sv in shap_values], axis=0)
@@ -922,12 +815,8 @@ def make_model(acc: pd.DataFrame):
     print(top_40_features)
 
     #ubset training and test sets
-    X_train_top40 = X_train_cs85[top_40_features]
     X_test_top40  = X_test_lgbm[top_40_features]
     # Retrain LightGBM on reduced features and Evaluating results
-
-    from lightgbm import LGBMClassifier, early_stopping
-    from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score
 
     best_lgbm_reduced = LGBMClassifier(
         objective='multiclass',
@@ -937,13 +826,6 @@ def make_model(acc: pd.DataFrame):
         num_leaves=31,
         n_estimators=200,
         random_state=42
-    )
-
-    best_lgbm_reduced.fit(
-        X_train_top40, y_train_cs85,
-        eval_set=[(X_test_top40, y_test_enc)],
-        eval_metric='multi_logloss',
-        callbacks=[early_stopping(stopping_rounds=20)]
     )
 
     y_pred = best_lgbm_reduced.predict(X_test_top40)
