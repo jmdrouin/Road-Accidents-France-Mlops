@@ -109,8 +109,13 @@ def split_and_transform(acc: pd.DataFrame):
     y_train_enc = label_encoder.fit_transform(y_train)
     y_test_enc = label_encoder.transform(y_test)
 
+    categorical_feature_names = list(encoder.get_feature_names_out(Columns.categorical))
+    names = Columns.numeric + categorical_feature_names + Columns.binary
+    feature_names = [name.replace(" ", "_") for name in names]
+
     return (
         X_train_final, X_test_final,
         y_train_enc, y_test_enc,
-        label_encoder, encoder, num_imputer, cat_imputer
+        label_encoder, encoder, num_imputer, cat_imputer,
+        feature_names
     )
