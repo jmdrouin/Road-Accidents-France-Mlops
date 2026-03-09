@@ -2,12 +2,12 @@
 # uv run python -m src.features.build_features
 
 import pandas as pd
-import src.features.cleanup_caract as cleanup_caract
-import src.features.cleanup_places as cleanup_places
-import src.features.cleanup_users as cleanup_users
-import src.features.cleanup_vehicles as cleanup_vehicles
-import src.features.cleanup_holidays as cleanup_holidays
-import src.features.prepare_accidents_data as prepare_accidents_data
+import src.features._cleanup_caract as cleanup_caract
+import src.features._cleanup_places as cleanup_places
+import src.features._cleanup_users as cleanup_users
+import src.features._cleanup_vehicles as cleanup_vehicles
+import src.features._cleanup_holidays as cleanup_holidays
+import src.features._cleanup_accidents as prepare_accidents_data
 import src.data.sql as sql
 
 def combine_to_accidents_dataframe(
@@ -61,25 +61,3 @@ def make_accidents_dataframe_from_sql():
     print("Processing data")
     return combine_to_accidents_dataframe(
         *[result[table] for table in tables])
-
-def visualize(
-    caract: pd.DataFrame,
-    places: pd.DataFrame,
-    users: pd.DataFrame,
-    vehicles: pd.DataFrame,
-    holidays: pd.DataFrame
-):
-    viz.visualize_overview(caract, places)
-    viz.visualize_injury_severity(users)
-    viz.visualize_user_vehicle(acc)
-    viz.visualize_accidents(acc)
-
-if __name__ == "__main__":
-    write_to_sql = True
-    acc = make_accidents_dataframe_from_sql()
-    if write_to_sql:
-        sql.write_dataframe("accidents", acc, to_file="data/processed/accidents.db")
-    else:
-        output = "data/processed/acc.csv"
-        print(f"Writing to {output}")
-        acc.to_csv(output, index=True, encoding="utf-8")
