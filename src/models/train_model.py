@@ -4,6 +4,7 @@ from src.models.export import export
 from imblearn.over_sampling import BorderlineSMOTE
 from lightgbm import LGBMClassifier
 import pandas as pd
+from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -44,32 +45,57 @@ def evaluate_final_model(model, X_test, y_test):
     print(f"Balanced Accuracy: {bal_acc:.4f}")
 
     print("\nClassification Report:")
-    print(classification_report(y_test, y_pred_bs85))
+    cr = classification_report(y_test, y_pred_bs85)
+    print(cr)
 
     print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, y_pred_bs85))
+    cm = confusion_matrix(y_test, y_pred_bs85)
+    print(cm)
+
+    return {
+        "accuracy": acc,
+        "f1_macro": f1_macro,
+        "balanced_accuracy": bal_acc,
+        "confusion_matrix": cm,
+        "classification_report": cr
+    }
 
 def apply_smote_transform(X_train, y_train, feature_names):
     # Borderline SMOTE Integration (bsmote85)
+    print("  -- Nearest neighbors")
+    nn_k = NearestNeighbors(n_neighbors=2, n_jobs=-1)
+    nn_m = NearestNeighbors(n_neighbors=3, n_jobs=-1)
+
+    print("  -- Creating smote")
+    counts = pd.Series(y_train).value_counts().sort_index()
+    majority = counts.max()
+    target = int(0.5 * majority)
+
+    sampling_strategy = {
+        cls: max(count, target)
+        for cls, count in counts.items()
+        if count < target
+    }
+    print("  -- Sampling strategy:", sampling_strategy)
+
     bsmote85 = BorderlineSMOTE(
-        sampling_strategy={
-            0: 350000,   # boost class 0 (Hospitalized)
-            1: 363089,   # keep class 1 unchanged
-            2: 300000,   # strong boost for class 2 (Killed)
-            3: 522866    # must stay >= original
-        },
+        sampling_strategy=sampling_strategy,
         random_state=42,
-        kind="borderline-1"
+        kind="borderline-1",
+        k_neighbors=nn_k,
+        m_neighbors=nn_m
     )
 
+    print("  -- Fit resample smote")
     X_train_bs85, y_train_bs85 = bsmote85.fit_resample(X_train, y_train)
 
     # Convert to DataFrame with feature names (required for LightGBM feature name matching)
+    print("  -- Rebuild dataframe:")
     X_train_bs85 = pd.DataFrame(X_train_bs85, columns=feature_names)
 
     return (X_train_bs85, y_train_bs85)
 
-def train_model_from_dataframe(accidents_df: pd.DataFrame):
+def train_model_from_dataframe(accidents_df: pd.DataFrame, info):
     print("\n -- Splitting Data --")
     (
         X_train_final, X_test_final,
@@ -89,15 +115,20 @@ def train_model_from_dataframe(accidents_df: pd.DataFrame):
     model = train_final_model(X_train_bs85, y_train_bs85)
 
     print("\n -- Evaluate final model --")
-    evaluate_final_model(model, X_test_lgbm, y_test_enc)
+    metrics = evaluate_final_model(model, X_test_lgbm, y_test_enc)
 
     print("\n -- Export final model --")
-    export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer)
 
-def train_model(nrows: int | None, cutoff_date: str | None):
+    export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer, info, metrics)
+
+def train_model(nrows: int | None, cutoff_date: str | None, info):
     import src.data.sql as sql
     df = sql.read_accidents(nrows, cutoff_date)
-    train_model_from_dataframe(df)
+    train_model_from_dataframe(df, info)
 
 if __name__ == "__main__":
-    train_model(nrows=50000, cutoff_date="2010-01-01 12:34")
+    params = {
+        "nrows": 1_000_000,
+        "cutoff_date":"2010-01-01 12:34"
+    }
+    train_model(params["nrows"], params["cutoff_date"], params)
