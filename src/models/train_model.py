@@ -2,7 +2,7 @@
 from src.models.split_and_transform import split_and_transform
 from src.models.export import export
 from imblearn.over_sampling import BorderlineSMOTE
-
+from lightgbm import LGBMClassifier
 import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
@@ -11,16 +11,6 @@ from sklearn.metrics import (
     f1_score,
     balanced_accuracy_score
 )
-from lightgbm import LGBMClassifier
-
-def get_master_df(source_file):
-    acc = pd.read_csv(
-        source_file,
-        encoding="latin-1",
-        low_memory=False,
-        index_col="accident_id"
-    )
-    return acc
 
 def train_final_model(X_train, y_train):
     ### TRAINING the final model (lgbm_bs85 on the full Borderline‑SMOTE dataset (X_train_bs85, y_train_bs85))
@@ -79,19 +69,14 @@ def apply_smote_transform(X_train, y_train, feature_names):
 
     return (X_train_bs85, y_train_bs85)
 
-def train_model():
-    # TODO: For experiments only. Use the real processed data.
-    source_file = "tests/resources/reference_file_master_acc.csv"
-    print("f\n -- Getting dataframe ({source_file}) --")
-    acc = get_master_df(source_file)
-
+def train_model_from_dataframe(accidents_df: pd.DataFrame):
     print("\n -- Splitting Data --")
     (
         X_train_final, X_test_final,
         y_train_enc, y_test_enc,
         label_encoder, encoder, num_imputer, cat_imputer,
         feature_names
-    ) = split_and_transform(acc)
+    ) = split_and_transform(accidents_df)
 
     # Wrap X_train_lgbm into a DataFrame with names
     X_train_lgbm = pd.DataFrame(X_train_final, columns=feature_names)
@@ -109,5 +94,10 @@ def train_model():
     print("\n -- Export final model --")
     export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer)
 
+def train_model(nrows: int | None, cutoff_date: str | None):
+    import src.data.sql as sql
+    df = sql.read_accidents(nrows, cutoff_date)
+    train_model_from_dataframe(df)
+
 if __name__ == "__main__":
-    train_model()
+    train_model(nrows=50000, cutoff_date="2010-01-01 12:34")

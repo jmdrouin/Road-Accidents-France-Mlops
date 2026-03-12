@@ -1,7 +1,8 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from tqdm import tqdm
 from typing import List
 import pandas as pd
+import math
 
 def read_as_dataframes(
     file: str,
@@ -9,13 +10,51 @@ def read_as_dataframes(
 ) -> dict[str, pd.DataFrame]:
     engine = create_engine(f"sqlite:///{file}")
     result = {}
-    for table in tables:
-        chunks = pd.read_sql_table(table, con=engine, chunksize=50_000)
-        dfs = []
-        for chunk in tqdm(chunks, desc=f"Loading {table}"):
-            dfs.append(chunk)
-        result[table] = pd.concat(dfs, ignore_index=True)
+    chunksize = 10_000
+    with engine.connect() as conn:
+        for table in tables:
+            n_rows = conn.execute(
+                text(f"SELECT COUNT(*) FROM {table}")
+            ).scalar()
+            n_chunks = math.ceil(n_rows / chunksize)
+            chunks = pd.read_sql_table(table, con=conn, chunksize=chunksize)
+            dfs = []
+            for chunk in tqdm(chunks, total=n_chunks, desc=f"Loading {table}", unit="chunk"):
+                dfs.append(chunk)
+            result[table] = pd.concat(dfs, ignore_index=True)
     return result
+
+def read_accidents(
+    nrows: int | None,
+    cutoff_date: str | None,
+) -> pd.DataFrame:
+    file = "data/processed/accidents.db"
+    engine = create_engine(f"sqlite:///{file}")
+    table = "accidents"
+    chunksize = 10_000
+    params = {}
+
+    where_clause = ""
+    if cutoff_date is not None:
+        where_clause = " WHERE date <= :cutoff_date"
+        params["cutoff_date"] = cutoff_date
+
+    limit_clause = ""
+    if not nrows is None:
+        limit_clause = " ORDER BY RANDOM() LIMIT :nrows"
+        params["nrows"] = nrows
+
+    count_query = text(f"SELECT COUNT(*) FROM (SELECT 1 FROM {table}{where_clause}{limit_clause})")
+    data_query = text(f"SELECT * FROM {table}{where_clause}{limit_clause}")
+
+    with engine.connect() as conn:
+        n_rows = conn.execute(count_query, params).scalar()
+        n_chunks = math.ceil(n_rows / chunksize)
+        chunks = pd.read_sql(data_query, conn, params=params, chunksize=chunksize)
+        dfs = []
+        for chunk in tqdm(chunks, total=n_chunks, desc=f"Loading {table}", unit="chunk"):
+            dfs.append(chunk)
+        return pd.concat(dfs, ignore_index=True)    
 
 def write_dataframe(table_name: str, df: pd.DataFrame, to_file: str):
     engine = create_engine(f"sqlite:///{to_file}")

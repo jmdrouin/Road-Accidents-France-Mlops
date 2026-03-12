@@ -2,8 +2,6 @@ import pandas as pd
 from pathlib import Path
 from src.features.build_features import combine_to_accidents_dataframe
 
-import pandas as pd
-
 def norm_label(s: pd.Series) -> pd.Series:
     # convert categorical/string/object -> pandas string dtype
     s = s.astype("string")

@@ -27,6 +27,7 @@ class Columns:
 def split_and_transform(acc: pd.DataFrame):
     # Drop rows with missing target:
     acc = acc.dropna(subset=[Columns.target])
+    acc = acc.drop(columns=["date"])
 
     X = acc.drop(columns=[Columns.target])
     y = acc[Columns.target]

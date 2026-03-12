@@ -6,7 +6,7 @@ def prepare_accidents_data(acc: pd.DataFrame):
 
     drop_cols_acc = [
         "Unnamed: 0","vehicle_id",
-        "date","minute", "time_hhmm", "gps_label", "holiday_name", #redundant
+        "minute", "time_hhmm", "gps_label", "holiday_name", #redundant
         "longitude_num", "latitude_num","valid_geo",  # useful only for spatial analysis , dropping for modeling efficiency
         "mobile_obstacle_label",          # drop if too sparse
         "pedestrian_crossing_width", "mobile_obstacle_label", "reserved_lane_label", #too sparse
@@ -254,7 +254,6 @@ def prepare_accidents_data(acc: pd.DataFrame):
         "time_of_day", # redundant, since already have hour_group and is_night.
 
         "birth_year",   # replaced by age + age_group
-        "date",         # replaced by day_of_week, hour_group, season, is_weekend
         "num_lanes",    # captured in lane_width
         "road_width",   # captured in lane_width
         

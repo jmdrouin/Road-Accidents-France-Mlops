@@ -61,3 +61,11 @@ def make_accidents_dataframe_from_sql():
     print("Processing data")
     return combine_to_accidents_dataframe(
         *[result[table] for table in tables])
+
+if __name__ == "__main__":
+    df = make_accidents_dataframe_from_sql()
+
+    print("COLUMNS")
+    print(df.columns)
+
+    sql.write_dataframe("accidents", df, to_file="data/processed/accidents.db")
