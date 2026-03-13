@@ -55,7 +55,7 @@ def make_accidents_dataframe_from_sql(source_file):
     return combine_to_accidents_dataframe(
         *[result[table] for table in tables])
 
-if __name__ == "__main__":
+def build_features():
     folder = Path("data/raw/latest")
     files = list(folder.glob("accidents_*.db"))
     if len(files) != 1:
@@ -71,3 +71,7 @@ if __name__ == "__main__":
 
     df = make_accidents_dataframe_from_sql(file_path)
     sql.write_dataframe("accidents", df, to_file=dest_file)
+    return dest_file
+
+if __name__ == "__main__":
+    build_features()

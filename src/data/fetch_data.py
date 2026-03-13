@@ -33,6 +33,7 @@ def fetch_data(cutoff: str):
 
     return (destination, filtered_count)
 
-# Fetch data until 20 years ago (simulated)
-ten_years_ago = datetime.now() - relativedelta(years=20)
-fetch_data(ten_years_ago.strftime("%Y-%m-%d %H:%M:%S"))
+if __name__ == "__main__":
+    # Fetch data until 20 years ago (simulated)
+    ten_years_ago = datetime.now() - relativedelta(years=20)
+    fetch_data(ten_years_ago.strftime("%Y-%m-%d %H:%M:%S"))

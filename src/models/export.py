@@ -37,3 +37,5 @@ def export(model, feature_names, label_encoder, encoder, cat_imputer, num_impute
     print("\n Multiclass model and preprocessors exported successfully!")
     print("   Model: lgbm_bs85_final")
     print(f"   Location: {destination}")
+
+    return destination

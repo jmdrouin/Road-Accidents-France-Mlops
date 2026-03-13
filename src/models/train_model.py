@@ -120,7 +120,10 @@ def train_model_from_dataframe(accidents_df: pd.DataFrame, info, timestamp):
 
     print("\n -- Export final model --")
 
-    export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer, info, metrics, timestamp)
+    return export(
+        model, feature_names, label_encoder, encoder, cat_imputer,
+        num_imputer, info, metrics, timestamp
+    )
 
 def train_model(nrows: int | None, info):
     import src.data.sql as sql
@@ -133,7 +136,7 @@ def train_model(nrows: int | None, info):
     timestamp = file.stem.split("_")[1]
 
     df = sql.read_accidents(file, nrows)
-    train_model_from_dataframe(df, info, timestamp)
+    return train_model_from_dataframe(df, info, timestamp)
 
 if __name__ == "__main__":
     params = {"nrows": 1_000_000}
