@@ -45,18 +45,9 @@ def combine_to_accidents_dataframe(
 
     return acc
 
-def make_accidents_dataframe_from_csv():
-    return combine_to_accidents_dataframe(
-        caract = pd.read_csv("data/csv/caracteristics.csv", encoding="latin-1", low_memory=False),
-        places = pd.read_csv("data/csv/places.csv", encoding="latin-1", low_memory=False),
-        users = pd.read_csv("data/csv/users.csv", encoding="latin-1"),
-        vehicles = pd.read_csv("data/csv/vehicles.csv", encoding="latin-1"),
-        holidays = pd.read_csv("data/csv/holidays.csv", encoding="latin-1")
-    )
-
 def make_accidents_dataframe_from_sql():
     tables = ["caracteristics", "places", "users", "vehicles", "holidays"]
-    result = sql.read_as_dataframes("data/sql/accidents.db", tables)
+    result = sql.read_as_dataframes("data/raw/accidents.db", tables)
 
     print("Processing data")
     return combine_to_accidents_dataframe(
