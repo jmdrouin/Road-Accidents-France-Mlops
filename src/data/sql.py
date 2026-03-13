@@ -67,3 +67,17 @@ def write_dataframe(table_name: str, df: pd.DataFrame, to_file: str):
             chunk.to_sql(table_name, engine, if_exists=if_exists, index=False)
             pbar.update(min(chunksize, total - i))
 
+def write_dataframes( to_file: str, tables: dict[str, pd.DataFrame]):
+    print(f"Writing SQL to {to_file}")
+
+    engine = create_engine(f"sqlite:///{to_file}")
+    chunksize = 10_000
+
+    for table_name, df in tables.items():
+        total = len(df)
+        with tqdm(total=total, desc=f"Writing {table_name}") as pbar:
+            for i in range(0, total, chunksize):
+                if_exists = "replace" if i==0 else "append"
+                chunk = df.iloc[i:i+chunksize]
+                chunk.to_sql(table_name, engine, if_exists=if_exists, index=False)
+                pbar.update(min(chunksize, total - i))
