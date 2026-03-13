@@ -25,27 +25,21 @@ def read_as_dataframes(
     return result
 
 def read_accidents(
-    nrows: int | None,
-    cutoff_date: str | None,
+    file,
+    nrows: int | None
 ) -> pd.DataFrame:
-    file = "data/processed/accidents.db"
     engine = create_engine(f"sqlite:///{file}")
     table = "accidents"
     chunksize = 10_000
     params = {}
-
-    where_clause = ""
-    if cutoff_date is not None:
-        where_clause = " WHERE date <= :cutoff_date"
-        params["cutoff_date"] = cutoff_date
 
     limit_clause = ""
     if not nrows is None:
         limit_clause = " ORDER BY RANDOM() LIMIT :nrows"
         params["nrows"] = nrows
 
-    count_query = text(f"SELECT COUNT(*) FROM (SELECT 1 FROM {table}{where_clause}{limit_clause})")
-    data_query = text(f"SELECT * FROM {table}{where_clause}{limit_clause}")
+    count_query = text(f"SELECT COUNT(*) FROM (SELECT 1 FROM {table}{limit_clause})")
+    data_query = text(f"SELECT * FROM {table}{limit_clause}")
 
     with engine.connect() as conn:
         n_rows = conn.execute(count_query, params).scalar()

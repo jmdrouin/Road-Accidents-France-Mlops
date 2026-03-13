@@ -14,7 +14,7 @@ def fetch_data(cutoff: str):
     for f in glob.glob(os.path.join(dest_folder, "*.db")):
         os.remove(f)
 
-    destination = dest_folder + "/accidents_" + pd.Timestamp(cutoff).strftime("%Y%m%d_%H%M%S") + ".db"
+    destination = dest_folder + "/accidents_" + pd.Timestamp(cutoff).strftime("%Y%m%d%H%M%S") + ".db"
 
     shutil.copy(source, destination)
 

@@ -3,7 +3,7 @@ from pathlib import Path
 from src.models.split_and_transform import Columns
 import datetime
 
-def export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer, info, metrics):
+def export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer, info, metrics, timestamp):
     # Create models directory
     Path("models").mkdir(exist_ok=True)
 
@@ -11,10 +11,10 @@ def export(model, feature_names, label_encoder, encoder, cat_imputer, num_impute
     print(f"  First 10: {feature_names[:10]}")
     print(f"  Sample age_group features: {[f for f in feature_names if 'age_group' in f][:5]}")
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    creation_timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     artifact = {
         "type": "multiclass lgbm model",
-        "timestamp": timestamp,
+        "timestamps": {"created": creation_timestamp, "data_source": timestamp},
         "info": info,
         "metrics": metrics,
         "model": model,
