@@ -9,6 +9,8 @@ import src.features._cleanup_vehicles as cleanup_vehicles
 import src.features._cleanup_holidays as cleanup_holidays
 import src.features._cleanup_accidents as prepare_accidents_data
 import src.data.sql as sql
+from pathlib import Path
+import glob, os
 
 def combine_to_accidents_dataframe(
     caract: pd.DataFrame,
@@ -45,27 +47,31 @@ def combine_to_accidents_dataframe(
 
     return acc
 
-def make_accidents_dataframe_from_csv():
-    return combine_to_accidents_dataframe(
-        caract = pd.read_csv("data/csv/caracteristics.csv", encoding="latin-1", low_memory=False),
-        places = pd.read_csv("data/csv/places.csv", encoding="latin-1", low_memory=False),
-        users = pd.read_csv("data/csv/users.csv", encoding="latin-1"),
-        vehicles = pd.read_csv("data/csv/vehicles.csv", encoding="latin-1"),
-        holidays = pd.read_csv("data/csv/holidays.csv", encoding="latin-1")
-    )
-
-def make_accidents_dataframe_from_sql():
-    tables = ["caracteristics", "places", "users", "vehicles", "holidays"]
-    result = sql.read_as_dataframes("data/sql/accidents.db", tables)
+def make_accidents_dataframe_from_sql(source_file):
+    tables = ["caract", "places", "users", "vehicles", "holidays"]
+    result = sql.read_as_dataframes(source_file, tables)
 
     print("Processing data")
     return combine_to_accidents_dataframe(
         *[result[table] for table in tables])
 
+def build_features():
+    folder = Path("data/raw/latest")
+    files = list(folder.glob("accidents_*.db"))
+    if len(files) != 1:
+        print("[!] FILES FOUND:", files)
+        raise RuntimeError(f"Expected exactly 1 file, found {len(files)}")
+    file_path = files[0]
+    timestamp = file_path.stem.split("_")[1]
+
+    dest_folder = "data/processed"
+    for f in glob.glob(os.path.join(dest_folder, "accidents_*.db")):
+        os.remove(f)
+    dest_file = f"{dest_folder}/accidents_{timestamp}.db"
+
+    df = make_accidents_dataframe_from_sql(file_path)
+    sql.write_dataframe("accidents", df, to_file=dest_file)
+    return dest_file
+
 if __name__ == "__main__":
-    df = make_accidents_dataframe_from_sql()
-
-    print("COLUMNS")
-    print(df.columns)
-
-    sql.write_dataframe("accidents", df, to_file="data/processed/accidents.db")
+    build_features()

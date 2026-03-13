@@ -12,6 +12,7 @@ from sklearn.metrics import (
     f1_score,
     balanced_accuracy_score
 )
+from pathlib import Path
 
 def train_final_model(X_train, y_train):
     ### TRAINING the final model (lgbm_bs85 on the full Borderline‑SMOTE dataset (X_train_bs85, y_train_bs85))
@@ -95,7 +96,7 @@ def apply_smote_transform(X_train, y_train, feature_names):
 
     return (X_train_bs85, y_train_bs85)
 
-def train_model_from_dataframe(accidents_df: pd.DataFrame, info):
+def train_model_from_dataframe(accidents_df: pd.DataFrame, info, timestamp):
     print("\n -- Splitting Data --")
     (
         X_train_final, X_test_final,
@@ -119,16 +120,24 @@ def train_model_from_dataframe(accidents_df: pd.DataFrame, info):
 
     print("\n -- Export final model --")
 
-    export(model, feature_names, label_encoder, encoder, cat_imputer, num_imputer, info, metrics)
+    return export(
+        model, feature_names, label_encoder, encoder, cat_imputer,
+        num_imputer, info, metrics, timestamp
+    )
 
-def train_model(nrows: int | None, cutoff_date: str | None, info):
+def train_model(nrows: int | None, info):
     import src.data.sql as sql
-    df = sql.read_accidents(nrows, cutoff_date)
-    train_model_from_dataframe(df, info)
+
+    folder = Path("data/processed")
+    files = list(folder.glob("accidents_*.db"))
+    if len(files) != 1:
+        raise RuntimeError(f"Expected exactly 1 file, found {len(files)}")
+    file = files[0]
+    timestamp = file.stem.split("_")[1]
+
+    df = sql.read_accidents(file, nrows)
+    return train_model_from_dataframe(df, info, timestamp)
 
 if __name__ == "__main__":
-    params = {
-        "nrows": 1_000_000,
-        "cutoff_date":"2010-01-01 12:34"
-    }
-    train_model(params["nrows"], params["cutoff_date"], params)
+    params = {"nrows": 1_000_000}
+    train_model(params["nrows"], params)
