@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +8,7 @@ import pandas as pd
 
 from src.util import last_file_in_folder
 from src.models.split_and_transform import transform
+from src.models.accident import build_accident_model
 
 
 def load_artifact(model_path: str | Path) -> dict[str, Any]:
@@ -34,7 +34,6 @@ def load_artifact(model_path: str | Path) -> dict[str, Any]:
         raise KeyError(f"Artifact missing required keys: {sorted(missing)}")
 
     return artifact
-
 
 def prepare_features(df: pd.DataFrame, artifact: dict[str, Any]) -> pd.DataFrame:
     label_encoder = artifact["label_encoder"]
@@ -67,12 +66,23 @@ def predict_dataframe(df: pd.DataFrame, artifact: dict[str, Any]) -> pd.DataFram
 
     return result
 
-def main() -> None:
+def latest_model_artifact():
     file = last_file_in_folder("models", "model_*.pkl")
-    artifact = load_artifact(file)
+    return load_artifact(file)
 
-    print("\nSAMPLE:")
-    print(artifact["sample"])
+# TODO: This should be a unit test (checking if the data was retransformed correctly)
+def main() -> None:
+    artifact = latest_model_artifact()
+
+    print("\n======================\nSAMPLE:")
+    print(artifact["sample"]["X"])
+
+    print("\n======================\nCOLS:")
+    print(artifact["sample"]["X"].columns)
+
+    print("\n======================\nFEATURES:")
+    print(artifact["column_info"])
+
 
     preds = predict_dataframe(artifact["sample"]["X"], artifact)
 
@@ -87,5 +97,32 @@ def main() -> None:
     print(true_y)
 
 
+PREDICT_COLUMNS = [
+    'timestamp', 'collision_label', 'is_weekend', 'season',
+    'surface_condition_label', 'manoeuvre_label', 'sex_label',
+    'user_category_label', 'seat_position_label', 'journey_purpose_label',
+    'is_holiday', 'age', 'age_group', 'seatbelt_used', 'helmet_used',
+    'any_protection_used', 'protection_effective', 'vehicle_group',
+    'impact_group', 'motorcycle_side_impact', 'is_night', 'is_urban',
+    'lane_width', 'road_group', 'weather_group', 'day_of_week',
+    'hour_group'
+]
+
+def predict_one(**kwargs):
+    Accident = build_accident_model()
+    accident = Accident(**kwargs)
+    data = accident.model_dump()
+    data["timestamp"] = None
+    df = pd.DataFrame([data])[PREDICT_COLUMNS]
+    pred = predict_dataframe(df, latest_model_artifact())
+    
+    print(pred)
+
 if __name__ == "__main__":
-    main()
+    predict_one(
+        manoeuvre_label="Turning",
+        vehicle_group="Car",
+        age=45,
+        lane_width=3.5
+    )
+    #main()
