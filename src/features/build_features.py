@@ -9,6 +9,7 @@ import src.features._cleanup_vehicles as cleanup_vehicles
 import src.features._cleanup_holidays as cleanup_holidays
 import src.features._cleanup_accidents as prepare_accidents_data
 import src.data.sql as sql
+from src.util import single_file_in_folder
 from pathlib import Path
 import glob, os
 
@@ -57,11 +58,7 @@ def make_accidents_dataframe_from_sql(source_file):
 
 def build_features():
     folder = Path("data/raw/latest")
-    files = list(folder.glob("accidents_*.db"))
-    if len(files) != 1:
-        print("[!] FILES FOUND:", files)
-        raise RuntimeError(f"Expected exactly 1 file, found {len(files)}")
-    file_path = files[0]
+    file_path = single_file_in_folder(folder, "accidents_*.db")
     timestamp = file_path.stem.split("_")[1]
 
     dest_folder = "data/processed"

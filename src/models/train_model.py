@@ -1,6 +1,7 @@
 
-from src.models.split_and_transform import split_and_transform
+from src.models.split_and_transform import split, transform, prepare_transformers
 from src.models.export import export
+from src.util import single_file_in_folder
 from imblearn.over_sampling import BorderlineSMOTE
 from lightgbm import LGBMClassifier
 import pandas as pd
@@ -98,16 +99,10 @@ def apply_smote_transform(X_train, y_train, feature_names):
 
 def train_model_from_dataframe(accidents_df: pd.DataFrame, info, timestamp):
     print("\n -- Splitting Data --")
-    (
-        X_train_final, X_test_final,
-        y_train_enc, y_test_enc,
-        label_encoder, encoder, num_imputer, cat_imputer,
-        feature_names
-    ) = split_and_transform(accidents_df)
-
-    # Wrap X_train_lgbm into a DataFrame with names
-    X_train_lgbm = pd.DataFrame(X_train_final, columns=feature_names)
-    X_test_lgbm = pd.DataFrame(X_test_final, columns=feature_names)
+    X_train, X_test, y_train, y_test = split(accidents_df)
+    label_encoder, encoder, num_imputer, cat_imputer, scaler, feature_names = prepare_transformers(X_train, y_train)
+    X_train_lgbm, y_train_enc = transform(X_train, y_train, label_encoder, encoder, num_imputer, cat_imputer, scaler, feature_names)
+    X_test_lgbm, y_test_enc = transform(X_test, y_test, label_encoder, encoder, num_imputer, cat_imputer, scaler, feature_names)
 
     print("\n -- Apply smote transform --")
     (X_train_bs85, y_train_bs85) = apply_smote_transform(X_train_lgbm, y_train_enc, feature_names)
@@ -120,19 +115,18 @@ def train_model_from_dataframe(accidents_df: pd.DataFrame, info, timestamp):
 
     print("\n -- Export final model --")
 
+    x_sample = X_test.head(10)
+    y_sample = model.predict_proba(X_test_lgbm.head(10))
+
     return export(
         model, feature_names, label_encoder, encoder, cat_imputer,
-        num_imputer, info, metrics, timestamp
+        num_imputer, scaler, info, metrics, timestamp, x_sample, y_sample
     )
 
 def train_model(nrows: int | None, info):
     import src.data.sql as sql
 
-    folder = Path("data/processed")
-    files = list(folder.glob("accidents_*.db"))
-    if len(files) != 1:
-        raise RuntimeError(f"Expected exactly 1 file, found {len(files)}")
-    file = files[0]
+    file = single_file_in_folder("data/processed", "accidents_*.db")
     timestamp = file.stem.split("_")[1]
 
     df = sql.read_accidents(file, nrows)
