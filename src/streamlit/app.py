@@ -121,9 +121,48 @@ def main():
             st.subheader("Prediction")
             st.dataframe(result[probas])
 
+            row = result.iloc[0]
+            best = max(probas, key=lambda c: row[c])
+            label = best.replace("proba_", "")
+            confidence = row[best]
+            st.subheader(f"{label} (p={100*confidence}%)")
+
+            display_probability_chart(result[probas])
+
         except Exception as e:
             st.error(str(e))
 
+def display_probability_chart(result):
+    import plotly.graph_objects as go
+
+    probas = [c for c in result.columns if c.startswith("proba_")]
+    row = result.iloc[0]
+
+    labels = [c.replace("proba_", "") for c in probas]
+    values = [float(row[c]) for c in probas]
+
+    # optional: sort from highest to lowest
+    # pairs = sorted(zip(labels, values), key=lambda x: x[1])
+    # labels = [p[0] for p in pairs]
+    # values = [p[1] for p in pairs]
+
+    fig = go.Figure(
+        go.Bar(
+            x=values,
+            y=labels,
+            orientation="h",
+            text=[f"{v:.1%}" for v in values],
+            textposition="outside",
+        )
+    )
+
+    fig.update_layout(
+        xaxis=dict(range=[0, 1], tickformat=".0%"),
+        yaxis=dict(title=""),
+        showlegend=False,
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     main()
