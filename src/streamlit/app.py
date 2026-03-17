@@ -40,7 +40,7 @@ def build_input_data():
         "age",
         min_value=0,
         max_value=106,
-        value=field_default("age") or 0,
+        value=field_default("age") or 30,
     )
     data["lane_width"] = st.number_input(
         "lane_width",
@@ -88,10 +88,9 @@ def build_input_data():
     ]
 
     for field in binary_fields:
-        values = field_enum_values(field)
-        default = field_default(field)
-        index = values.index(default)
-        data[field] = st.selectbox(field, values, index=index)
+        default = bool(field_default(field))
+        label = field.replace("_", " ").capitalize()
+        data[field] = 1 if st.checkbox(label, value=default) else 0
 
     return data
 
