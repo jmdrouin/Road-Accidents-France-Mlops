@@ -19,8 +19,31 @@ uv run pytest
 uv run scripts/download_data.py
 uv run scripts/csv_to_sqlite.py
 
+==============================
+## MLflow
+==============================
 
-Project Name
+## Run model tracking script:
+
+uv sync
+$env:PYTHONPATH = "."; uv run python -m src.models.track_model
+
+
+## Stop server on port 5000:
+
+$p = (Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue).OwningProcess
+if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
+
+
+## Run server in background:
+
+Start-Job -Name "mlflow" -ScriptBlock {
+    Set-Location "[local path to Road-Accidents-France-Mlops]"
+    uv run mlflow ui --backend-store-uri sqlite:///[local path to Road-Accidents-France-Mlops]/data/mlflow/mlflow.db --host 127.0.0.1 --port 5000
+}
+
+==============================
+## Project Name
 ==============================
 
 This project is a starting Pack for MLOps projects based on the subject "movie_recommandation". It's not perfect so feel free to make some modifications on it.
