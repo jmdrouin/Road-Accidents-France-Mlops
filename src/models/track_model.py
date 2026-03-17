@@ -19,6 +19,8 @@ import io
 import os
 import tempfile
 
+from scripts.run_pipeline import run_pipeline
+
 def get_latest_model_path():
     model_dir = Path("models")
 
@@ -130,6 +132,9 @@ def track_results(artifact):
         print(f"OK: Run finished: {mlflow.active_run().info.run_id}")
 
 if __name__ == "__main__":
+
+    # 0. Run pipeline
+    run_pipeline()
 
     # 1. Find path to newest model
     path = get_latest_model_path() 
