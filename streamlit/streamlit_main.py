@@ -47,6 +47,7 @@ import streamlit as st
 
 from streamlit_home import run_home_page
 from streamlit_0 import run_page_0
+from predict_demo import predict_demo
 
 # ----------------------------------------------
 # Configuration, CSS
@@ -80,14 +81,12 @@ st.markdown("""
 # analytics bar_chart code computer insights database
 # arrow_forward_ios trending_up
 
-#Home: Context & Objectives
-home_page = st.Page(run_home_page, title="Home", icon=":material/home:")
-
 #Sections
-page_0 = st.Page(run_page_0, title="Dataset", icon=":material/database:")
-
-# Group pages into a list or a dictionary for sections
-pages = [home_page, page_0] #, page_1, page_2, page_3, page_4, page_5
+pages = [
+    st.Page(run_home_page, title="Home", icon=":material/home:"),
+    st.Page(run_page_0, title="Dataset", icon=":material/database:"),
+    st.Page(predict_demo, title="Demo", icon=":material/database:")
+]
 
 # Create the navigation menu
 pg = st.navigation(pages, position="sidebar") # Position can be "sidebar" or "hidden"

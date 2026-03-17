@@ -95,7 +95,7 @@ def build_input_data():
     return data
 
 
-def main():
+def predict_demo():
     st.title("Accident prediction")
 
     model_file = last_file_in_folder("models", "model_*.pkl")
@@ -164,4 +164,4 @@ def display_probability_chart(result):
     st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
-    main()
+    predict_demo()
