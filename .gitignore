@@ -9,3 +9,10 @@ _tmp/
 data/*/*
 !data/*/.gitkeep
 models/*
+
+# mlflow
+mlruns/
+data/mlflow/*
+
+# local
+_local/*

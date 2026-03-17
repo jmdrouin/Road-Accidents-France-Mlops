@@ -1,0 +1,11 @@
+
+# recognize text data
+* text=auto
+
+# python scripts need to have LF (linux style)
+*.py text eol=lf
+
+# mark binary data
+*.joblib binary
+*.pkl binary
+*.model binary
