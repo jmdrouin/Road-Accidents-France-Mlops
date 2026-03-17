@@ -108,21 +108,19 @@ PREDICT_COLUMNS = [
     'hour_group'
 ]
 
-def predict_one(**kwargs):
-    Accident = build_accident_model()
-    accident = Accident(**kwargs)
+def predict_accident(accident):
     data = accident.model_dump()
     data["timestamp"] = None
     df = pd.DataFrame([data])[PREDICT_COLUMNS]
     pred = predict_dataframe(df, latest_model_artifact())
-    
     print(pred)
 
 if __name__ == "__main__":
-    predict_one(
+    accident = build_accident_model()(
         manoeuvre_label="Turning",
         vehicle_group="Car",
         age=45,
         lane_width=3.5
     )
+    predict_accident(accident)
     #main()
