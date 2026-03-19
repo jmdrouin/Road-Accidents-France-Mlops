@@ -22,6 +22,42 @@ PREDICT_COLUMNS = [
     "hour_group"
 ]
 
+def ordered_field_values(field_name: str):
+    values = field_enum_values(field_name)
+
+    preferred_orders = {
+        "season": ["Spring", "Summer", "Autumn", "Winter"],
+        "day_of_week": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ],
+        "hour_group": [
+            "Morning",
+            "Afternoon",
+            "Evening",
+            "Night",
+        ],
+        "age_group": [
+            "Child", "Young_Adult", "Adult", "Middle_Aged", "Senior", "null"
+        ]
+    }
+
+    preferred = preferred_orders.get(field_name)
+    if not preferred:
+        return values
+
+    # Keep only values that actually exist in the enum, in the desired order.
+    ordered = [v for v in preferred if v in values]
+
+    # Add any unexpected enum values at the end so nothing breaks.
+    remaining = [v for v in values if v not in ordered]
+
+    return ordered + remaining
 
 def field_enum_values(field_name: str):
     annotation = Accident.model_fields[field_name].annotation
@@ -76,12 +112,30 @@ def render_fields(fields: list[str], data: dict):
         "lane_width",
     }
 
+    segmented_fields = {
+        "season", "day_of_week", "hour_group", "weather_group", "road_group",
+        "surface_condition_label", "journey_purpose_label", "age_group",
+        "sex_label", "user_category_label",
+        "seat_position_label",
+        "journey_purpose_label",
+        "collision_label",
+        "manoeuvre_label",
+        "vehicle_group",
+        "impact_group",
+    }
+
     for field in fields:
         label = pretty_label(field)
 
         if field in binary_fields:
             default = bool(field_default(field))
-            data[field] = 1 if st.checkbox(label, value=default) else 0
+
+            value = st.toggle(
+                label,
+                value=default,
+                key=f"{field}_toggle",
+            )
+            data[field] = int(value)
 
         elif field in numeric_fields:
             default = field_default(field)
@@ -102,10 +156,19 @@ def render_fields(fields: list[str], data: dict):
                 )
 
         else:
-            values = field_enum_values(field)
+            values = ordered_field_values(field)
             default = field_default(field)
-            index = values.index(default)
-            data[field] = st.selectbox(label, values, index=index)
+
+            if field in segmented_fields:
+                data[field] = st.segmented_control(
+                    label,
+                    options=values,
+                    default=default,
+                    selection_mode="single",
+                )
+            else:
+                index = values.index(default)
+                data[field] = st.selectbox(label, values, index=index)
 
 def build_input_data():
     data = {}
