@@ -279,6 +279,103 @@ def predict_demo():
 def display_probability_chart(result):
     import plotly.graph_objects as go
 
+    desired_order = [
+        "Killed",
+        "Injured_Hospitalized",
+        "Injured_Slight",
+        "Uninjured",
+    ]
+
+    row = result.iloc[0]
+
+    labels = []
+    values = []
+
+    for label in desired_order:
+        col = f"proba_{label}"
+        if col in result.columns:
+            labels.append(label)
+            values.append(float(row[col]))
+
+    fig = go.Figure()
+
+    for label, value in zip(labels, values):
+        fig.add_trace(
+            go.Bar(
+                name=label,
+                x=[value],
+                y=["Prediction"],
+                orientation="h",
+                text=[f"{value:.1%}"],
+                textposition="inside",
+            )
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        xaxis=dict(
+            range=[0, 1],
+            tickformat=".0%",
+            title="Probability",
+        ),
+        yaxis=dict(title=""),
+        showlegend=True,
+        height=180,
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+
+    row = result.iloc[0]
+    p_killed = float(row.get("proba_Killed", 0.0))
+
+    st.metric(
+        label="Risk of death",
+        value=f"{p_killed:.2%}",
+    )
+
+    risk_bar(p_killed)
+
+    st.caption(f"≈ 1 in {int(1/p_killed) if p_killed > 0 else '∞'} cases")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def risk_bar(p):
+    # Color thresholds (tune these)
+    if p < 0.01:
+        color = "#2ca02c"   # green
+    elif p < 0.05:
+        color = "#ff7f0e"   # orange
+    else:
+        color = "#d62728"   # red
+
+    st.markdown(
+        f"""
+        <div style="
+            background-color: #eee;
+            border-radius: 8px;
+            height: 20px;
+            width: 100%;
+        ">
+            <div style="
+                background-color: {color};
+                width: {p*5000}%;
+                height: 100%;
+                border-radius: 8px;
+                text-align: right;
+                padding-right: 6px;
+                color: white;
+                font-size: 12px;
+                line-height: 20px;
+            ">
+                {p:.2%}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def _display_probability_chart(result):
+    import plotly.graph_objects as go
+
     probas = [c for c in result.columns if c.startswith("proba_")]
     row = result.iloc[0]
 
