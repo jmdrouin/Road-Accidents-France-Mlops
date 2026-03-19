@@ -2,14 +2,15 @@
 # uv run python -m streamlit run src/streamlit/app.py
 
 import streamlit as st
+import requests
+import os
 import pandas as pd
 from typing import get_args
 
 from src.models.accident import build_accident_model
-from src.models.predict_model import predict_dataframe, load_artifact
-from src.util import last_file_in_folder
 
 Accident = build_accident_model()
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 PREDICT_COLUMNS = [
     "timestamp", "collision_label", "is_weekend", "season",
@@ -237,10 +238,6 @@ def predict_demo():
     st.header("")
     st.set_page_config(layout="wide")
 
-    # TODO: Memoize those
-    model_file = last_file_in_folder("models", "model_*.pkl")
-    artifact = load_artifact(model_file)
-
     left_col, right_col = st.columns([1, 1])
 
     with left_col:
@@ -249,32 +246,78 @@ def predict_demo():
     with right_col:
         st.header("Prediction")
         if st.button("Predict"):
-            try:
-                accident = Accident(**input_data)
-                row = accident.model_dump()
-                row["timestamp"] = None
+            display_prediction(input_data)
 
-                df = pd.DataFrame([row])[PREDICT_COLUMNS]
-                result = predict_dataframe(df, artifact).copy()
-                
-                # Prevent bug where streamlit can't display "largeUtf8":
-                result = result.astype(object)
+def display_prediction(input_data):
+    try:
+        accident = Accident(**input_data)
 
-                probas = [c for c in result.columns if c.startswith("proba_")]
+        response = requests.post(
+            f"{API_BASE_URL}/predict",
+            json=accident.model_dump(),
+            timeout=30,
+        )
+        response.raise_for_status()
+        api_result = response.json()
 
-                st.subheader("Prediction")
-                st.dataframe(result[probas])
+        probabilities = api_result["probabilities"]
+        prediction = api_result["prediction"]
+        confidence = api_result["confidence"]
 
-                row = result.iloc[0]
-                best = max(probas, key=lambda c: row[c])
-                label = best.replace("proba_", "")
-                confidence = row[best]
-                st.subheader(f"{label} (p={100*confidence}%)")
+        st.subheader("Prediction")
+        st.write(f"**{prediction}** ({confidence:.1%})")
 
-                display_probability_chart_log(result[probas])
+        proba_df = pd.DataFrame([probabilities])
+        st.dataframe(proba_df, use_container_width=True)
 
-            except Exception as e:
-                st.error(str(e))
+        display_probability_chart_from_dict(probabilities)
+
+    except requests.HTTPError:
+        try:
+            detail = response.json()
+        except Exception:
+            detail = response.text
+        st.error(f"API error: {detail}")
+    except Exception as e:
+        st.error(str(e))
+
+def display_probability_chart_from_dict(probabilities: dict[str, float]):
+    import plotly.graph_objects as go
+
+    desired_order = [
+        "Killed",
+        "Injured_Hospitalized",
+        "Injured_Slight",
+        "Uninjured",
+    ]
+
+    labels = [label for label in desired_order if label in probabilities]
+    values = [float(probabilities[label]) for label in labels]
+
+    fig = go.Figure()
+
+    for label, value in zip(labels, values):
+        fig.add_trace(
+            go.Bar(
+                name=label,
+                x=[value],
+                y=["Prediction"],
+                orientation="h",
+                text=[f"{value:.1%}"],
+                textposition="inside",
+            )
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        xaxis=dict(range=[0, 1], tickformat=".0%", title="Probability"),
+        yaxis=dict(title=""),
+        height=180,
+        showlegend=True,
+        margin=dict(l=20, r=20, t=20, b=20),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
 
 def display_probability_chart(result):
     import plotly.graph_objects as go
