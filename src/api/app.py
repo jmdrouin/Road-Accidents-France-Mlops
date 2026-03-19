@@ -1,8 +1,10 @@
 # uvicorn src.api.app:app --reload
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from src.models.accident import build_accident_model
+Accident = build_accident_model()
 
 app = FastAPI()
 
@@ -56,6 +58,65 @@ def train_new_model(request: TrainRequest):
         "status": "ok",
         "file_written": file_written,
     }
+
+PREDICT_COLUMNS = [
+    "timestamp", "collision_label", "is_weekend", "season",
+    "surface_condition_label", "manoeuvre_label", "sex_label",
+    "user_category_label", "seat_position_label", "journey_purpose_label",
+    "is_holiday", "age", "age_group", "seatbelt_used", "helmet_used",
+    "any_protection_used", "protection_effective", "vehicle_group",
+    "impact_group", "motorcycle_side_impact", "is_night", "is_urban",
+    "lane_width", "road_group", "weather_group", "day_of_week",
+    "hour_group"
+]
+
+@app.post("/predict")
+def predict_accident(accident: Accident):
+    from src.util import last_file_in_folder
+    from src.models.predict_model import predict_dataframe, load_artifact
+    import pandas as pd
+    try:
+        model_file = last_file_in_folder("models", "model_*.pkl")
+        if not model_file:
+            raise HTTPException(status_code=404, detail="No trained model found")
+
+        artifact = load_artifact(model_file)
+
+        row = accident.model_dump()
+        row["timestamp"] = None
+
+        df = pd.DataFrame([row])[PREDICT_COLUMNS]
+        result = predict_dataframe(df, artifact).copy()
+
+        # convert numpy / arrow / pandas values into plain JSON-safe Python values
+        result_row = result.iloc[0].to_dict()
+
+        probas = {
+            k.replace("proba_", ""): float(v)
+            for k, v in result_row.items()
+            if k.startswith("proba_")
+        }
+
+        if not probas:
+            raise HTTPException(status_code=500, detail="Prediction returned no probabilities")
+
+        best_label = max(probas, key=probas.get)
+        best_proba = probas[best_label]
+
+        return {
+            "status": "ok",
+            "model_file": model_file,
+            "prediction": best_label,
+            "confidence": float(best_proba),
+            "probabilities": probas,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.post("/run_pipeline")
 def run_pipeline(request: TrainRequest):
