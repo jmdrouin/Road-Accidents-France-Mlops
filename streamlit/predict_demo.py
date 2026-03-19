@@ -271,7 +271,7 @@ def predict_demo():
                 confidence = row[best]
                 st.subheader(f"{label} (p={100*confidence}%)")
 
-                display_probability_chart(result[probas])
+                display_probability_chart_log(result[probas])
 
             except Exception as e:
                 st.error(str(e))
@@ -335,6 +335,58 @@ def display_probability_chart(result):
     risk_bar(p_killed)
 
     st.caption(f"≈ 1 in {int(1/p_killed) if p_killed > 0 else '∞'} cases")
+
+    st.plotly_chart(fig, use_container_width=True)
+
+def display_probability_chart_log(result):
+    import plotly.graph_objects as go
+
+    desired_order = [
+        "Killed",
+        "Injured_Hospitalized",
+        "Injured_Slight",
+        "Uninjured",
+    ]
+
+    row = result.iloc[0]
+
+    labels = []
+    values = []
+
+    for label in desired_order:
+        col = f"proba_{label}"
+        if col in result.columns:
+            labels.append(label)
+            values.append(float(row[col]))
+
+    # avoid log(0)
+    epsilon = 1e-6
+    log_values = [max(v, epsilon) for v in values]
+
+    fig = go.Figure()
+
+    for label, value, raw_value in zip(labels, log_values, values):
+        fig.add_trace(
+            go.Bar(
+                name=label,
+                x=[value],
+                y=["Prediction"],
+                orientation="h",
+                text=[f"{raw_value:.2%}"],
+                textposition="inside",
+            )
+        )
+
+    fig.update_layout(
+        barmode="stack",
+        xaxis=dict(
+            type="log",
+            title="Probability (log scale)",
+        ),
+        yaxis=dict(title=""),
+        height=180,
+        showlegend=True,
+    )
 
     st.plotly_chart(fig, use_container_width=True)
 
