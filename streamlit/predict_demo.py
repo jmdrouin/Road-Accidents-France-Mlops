@@ -32,104 +32,186 @@ def field_default(field_name: str):
     return Accident.model_fields[field_name].default
 
 
-def build_input_data():
-    data = {}
+def pretty_label(field: str) -> str:
+    labels = {
+        "is_urban": "Urban area",
+        "weather_group": "Weather",
+        "road_group": "Road type",
+        "surface_condition_label": "Surface condition",
+        "lane_width": "Lane width",
+        "age_group": "Age group",
+        "sex_label": "Sex",
+        "user_category_label": "User category",
+        "seat_position_label": "Seat position",
+        "journey_purpose_label": "Journey purpose",
+        "day_of_week": "Day of week",
+        "hour_group": "Hour group",
+        "collision_label": "Collision type",
+        "manoeuvre_label": "Manoeuvre",
+        "vehicle_group": "Vehicle group",
+        "impact_group": "Impact group",
+        "seatbelt_used": "Seatbelt used",
+        "helmet_used": "Helmet used",
+        "any_protection_used": "Any protection used",
+        "protection_effective": "Protection effective",
+        "motorcycle_side_impact": "Motorcycle side impact",
+    }
+    return labels.get(field, field.replace("_", " ").title())
 
-    st.subheader("Numeric fields")
-    data["age"] = st.number_input(
-        "age",
-        min_value=0,
-        max_value=106,
-        value=field_default("age") or 30,
-    )
-    data["lane_width"] = st.number_input(
-        "lane_width",
-        min_value=0.5,
-        max_value=200.0,
-        value=float(field_default("lane_width") or 3.0),
-    )
-
-    st.subheader("Categorical fields")
-    categorical_fields = [
-        "collision_label",
-        "season",
-        "surface_condition_label",
-        "manoeuvre_label",
-        "sex_label",
-        "user_category_label",
-        "seat_position_label",
-        "journey_purpose_label",
-        "age_group",
-        "vehicle_group",
-        "impact_group",
-        "road_group",
-        "weather_group",
-        "day_of_week",
-        "hour_group",
-    ]
-
-    for field in categorical_fields:
-        values = field_enum_values(field)
-        default = field_default(field)
-        index = values.index(default)
-        data[field] = st.selectbox(field, values, index=index)
-
-    st.subheader("Binary fields")
-    binary_fields = [
+def render_fields(fields: list[str], data: dict):
+    binary_fields = {
         "is_weekend",
         "is_holiday",
+        "is_night",
         "seatbelt_used",
         "helmet_used",
         "any_protection_used",
         "protection_effective",
         "motorcycle_side_impact",
-        "is_night",
         "is_urban",
-    ]
+    }
 
-    for field in binary_fields:
-        default = bool(field_default(field))
-        label = field.replace("_", " ").capitalize()
-        data[field] = 1 if st.checkbox(label, value=default) else 0
+    numeric_fields = {
+        "age",
+        "lane_width",
+    }
+
+    for field in fields:
+        label = pretty_label(field)
+
+        if field in binary_fields:
+            default = bool(field_default(field))
+            data[field] = 1 if st.checkbox(label, value=default) else 0
+
+        elif field in numeric_fields:
+            default = field_default(field)
+
+            if field == "age":
+                data[field] = st.number_input(
+                    label,
+                    min_value=0,
+                    max_value=106,
+                    value=int(default or 30),
+                )
+            elif field == "lane_width":
+                data[field] = st.number_input(
+                    label,
+                    min_value=0.5,
+                    max_value=200.0,
+                    value=float(default or 3.0),
+                )
+
+        else:
+            values = field_enum_values(field)
+            default = field_default(field)
+            index = values.index(default)
+            data[field] = st.selectbox(label, values, index=index)
+
+def build_input_data():
+    data = {}
+
+    st.divider()
+    st.subheader("TIME")
+    render_fields(
+        [
+            "season",
+            "day_of_week",
+            "is_weekend",
+            "is_holiday",
+            "is_night",
+            "hour_group",
+        ],
+        data,
+    )
+
+    st.divider()
+    st.subheader("CONDITIONS")
+    render_fields(
+        [
+            "is_urban",
+            "weather_group",
+            "road_group",
+            "surface_condition_label",
+            "lane_width",
+        ],
+        data,
+    )
+
+    st.divider()
+    st.subheader("USER")
+    render_fields(
+        [
+            "age",
+            "age_group",
+            "sex_label",
+            "user_category_label",
+            "seat_position_label",
+            "journey_purpose_label",
+        ],
+        data,
+    )
+
+    st.divider()
+    st.subheader("ACCIDENT")
+    render_fields(
+        [
+            "collision_label",
+            "manoeuvre_label",
+            "vehicle_group",
+            "impact_group",
+            "seatbelt_used",
+            "helmet_used",
+            "any_protection_used",
+            "protection_effective",
+            "motorcycle_side_impact",
+        ],
+        data,
+    )
 
     return data
 
-
 def predict_demo():
-    st.title("Accident prediction")
+    st.header("")
+    st.set_page_config(layout="wide")
 
+    # TODO: Memoize those
     model_file = last_file_in_folder("models", "model_*.pkl")
     artifact = load_artifact(model_file)
 
-    input_data = build_input_data()
+    left_col, right_col = st.columns([1, 1])
 
-    if st.button("Predict"):
-        try:
-            accident = Accident(**input_data)
-            row = accident.model_dump()
-            row["timestamp"] = None
+    with left_col:
+        st.header("Accident")
+        input_data = build_input_data()
+    with right_col:
+        st.header("Prediction")
+        if st.button("Predict"):
+            try:
+                accident = Accident(**input_data)
+                row = accident.model_dump()
+                row["timestamp"] = None
 
-            df = pd.DataFrame([row])[PREDICT_COLUMNS]
-            result = predict_dataframe(df, artifact).copy()
-            
-            # Prevent bug where streamlit can't display "largeUtf8":
-            result = result.astype(object)
+                df = pd.DataFrame([row])[PREDICT_COLUMNS]
+                result = predict_dataframe(df, artifact).copy()
+                
+                # Prevent bug where streamlit can't display "largeUtf8":
+                result = result.astype(object)
 
-            probas = [c for c in result.columns if c.startswith("proba_")]
+                probas = [c for c in result.columns if c.startswith("proba_")]
 
-            st.subheader("Prediction")
-            st.dataframe(result[probas])
+                st.subheader("Prediction")
+                st.dataframe(result[probas])
 
-            row = result.iloc[0]
-            best = max(probas, key=lambda c: row[c])
-            label = best.replace("proba_", "")
-            confidence = row[best]
-            st.subheader(f"{label} (p={100*confidence}%)")
+                row = result.iloc[0]
+                best = max(probas, key=lambda c: row[c])
+                label = best.replace("proba_", "")
+                confidence = row[best]
+                st.subheader(f"{label} (p={100*confidence}%)")
 
-            display_probability_chart(result[probas])
+                display_probability_chart(result[probas])
 
-        except Exception as e:
-            st.error(str(e))
+            except Exception as e:
+                st.error(str(e))
 
 def display_probability_chart(result):
     import plotly.graph_objects as go
