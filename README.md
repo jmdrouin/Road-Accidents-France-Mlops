@@ -20,6 +20,21 @@ uv run scripts/download_data.py
 uv run scripts/csv_to_sqlite.py
 
 ==============================
+## Docker
+==============================
+
+# Start docker for both the API and the streamlit:
+docker compose up --build
+
+# Prerequisites:
+- Make sure that docker is running
+- Make sure that you have at least one trained model (run python -m scripts.run_pipeline to make one)
+
+# URLs:
+Streamlit -> http://localhost:8501
+API docs -> http://localhost:8000/docs
+
+==============================
 ## MLflow
 ==============================
 

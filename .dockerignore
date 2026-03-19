@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.python-version
+.venv/
+.env
+.git/
+.gitignore
+.pytest_cache/
+.mypy_cache/
+ruff_cache/
+dist/
+build/
+notebooks/
+data/
