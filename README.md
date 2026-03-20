@@ -20,6 +20,19 @@ uv run scripts/download_data.py
 uv run scripts/csv_to_sqlite.py
 
 ==============================
+## run scheduler, every 5min
+==============================
+uv run scripts/run_scheduler.py 5
+
+The scheduler prints output to the terminal after it has run.
+Log: scheduler.log
+
+==============================
+## run select_model separately
+==============================
+$env:PYTHONPATH = "."; uv run python -m src.models.select_model
+
+==============================
 ## MLflow
 ==============================
 

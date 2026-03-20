@@ -4,6 +4,12 @@ from src.models.train_model import train_model
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+import sys
+import os
+is_background = not sys.stdout.isatty()
+if is_background:
+    os.environ["TQDM_DISABLE"] = "1"
+
 def n_years_ago(n):
     result = datetime.now() - relativedelta(years=n)
     return result.strftime("%Y-%m-%d %H:%M:%S")
