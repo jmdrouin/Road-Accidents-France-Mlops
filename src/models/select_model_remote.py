@@ -135,7 +135,7 @@ def select_and_store_best_model(experiment_name="Road_Accidents_France", metric=
                 client.set_registered_model_alias(original_model_name, "best", best_version)
                 print(f"Sucsess: Model '{original_model_name}' Version {best_version} is now marked as 'best'.")
             else:
-                print(f"Warning: No regsitered Version found for run {best_run_id} gefunden.")
+                print(f"Warning: No registered Version found for run {best_run_id}.")
         
         except Exception as e:
             print(f"Error when setting alias: {e}")
