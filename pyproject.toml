@@ -23,6 +23,9 @@ dependencies = [
     "streamlit>=1.55.0",
     "uvicorn>=0.41.0",
     "apscheduler>=3.11.2",
+    "dagshub>=0.6.8",
+    "boto3>=1.42.73",
+    "python-dotenv>=1.2.2",
 ]
 
 [dependency-groups]

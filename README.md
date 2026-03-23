@@ -71,6 +71,35 @@ Start-Job -Name "mlflow" -ScriptBlock {
 }
 
 ==============================
+## MLflow - Remote (dagshub.com)
+==============================
+
+## run scripts
+run 'uv sync' before running track_model_remote, select_model_remote scripts
+
+run with:
+$env:PYTHONPATH = "."; uv run python -m src.models.track_model_remote
+
+## .env
+
+.env file (root dir) contains username, repo, and tracking token, eg:
+
+MLFLOW_TRACKING_USERNAME=ASi-DS
+MLFLOW_TRACKING_REPO=Road-Accidents-France-Mlops
+MLFLOW_TRACKING_PASSWORD=<token>
+
+## set up dagshub
+
+Current dagshub repo (user ASi-DS):
+https://dagshub.com/ASi-DS/Road-Accidents-France-Mlops.mlflow/
+
+To set dagshub repo to a different username:
+- Go to dagshub.com
+- Create a repo and set to Road-Accidents-France-Mlops
+- Create a default token (under settings: https://dagshub.com/user/settings/tokens)
+- Note: to grant rights to another user (ASi-DS) you possibly need to add as a collaborator
+
+==============================
 ## Project Name
 ==============================
 
