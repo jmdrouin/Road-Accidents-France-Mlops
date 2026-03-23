@@ -15,7 +15,7 @@ mlruns/
 data/mlflow/*
 
 # logs
-logs/*
+logs/*.log
 
 # local
 _local/*
