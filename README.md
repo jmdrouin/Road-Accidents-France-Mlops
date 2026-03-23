@@ -99,6 +99,13 @@ To set dagshub repo to a different username:
 - Create a default token (under settings: https://dagshub.com/user/settings/tokens)
 - Note: to grant rights to another user (ASi-DS) you possibly need to add as a collaborator
 
+Update:
+The default token must always be created and used locally in the .env file 
+Token can be created under: https://dagshub.com/user/settings/tokens
+
+Collaborater can be added under: 
+https://dagshub.com/<user>/Road-Accidents-France-Mlops/settings/collaboration
+
 ==============================
 ## Project Name
 ==============================
