@@ -23,6 +23,7 @@ dependencies = [
     "streamlit>=1.55.0",
     "uvicorn>=0.41.0",
     "apscheduler>=3.11.2",
+    "streamlit-autorefresh>=1.0.1",
 ]
 
 [dependency-groups]

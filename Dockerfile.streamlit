@@ -13,4 +13,4 @@ COPY . .
 
 EXPOSE 8501
 
-CMD ["uv", "run", "python", "-m", "streamlit", "run", "streamlit/streamlit_main.py", "--server.address=0.0.0.0", "--server.port=8501"]
+CMD ["uv", "run", "python", "-m", "streamlit", "run", "streamlit_app/streamlit_main.py", "--server.address=0.0.0.0", "--server.port=8501"]

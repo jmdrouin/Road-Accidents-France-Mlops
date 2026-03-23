@@ -1,43 +1,3 @@
-# ----------------------------------------------
-# Run streamlit app with:
-
-# cd <Directory>
-# streamlit run streamlit/streamlit_main.py
-
-# Run streamlit with uv:
-
-#uv add streamlit
-#uv run streamlit run streamlit/streamlit_main.py
-
-#url, eg: http://localhost:8501/, http://localhost:8501/run_page_0
-
-# ----------------------------------------------
-
-# ----------------------------------------------
-# import modules
-# ----------------------------------------------
-
-# classic packages
-import pandas as pd
-import numpy as np
-
-from joblib import dump, load
-
-# visualization
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# evaluation
-import shap
-
-# helper
-import time
-import random
-
-# custom libraries
-import sys
-#sys.path.append('../../library')
-
 # warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -48,6 +8,8 @@ import streamlit as st
 from streamlit_home import run_home_page
 from streamlit_0 import run_page_0
 from predict_demo import predict_demo
+
+from components.clock import display_simulated_date
 
 # ----------------------------------------------
 # Configuration, CSS
@@ -90,6 +52,9 @@ pages = [
 
 # Create the navigation menu
 pg = st.navigation(pages, position="sidebar") # Position can be "sidebar" or "hidden"
+
+with st.sidebar:
+    display_simulated_date()
 
 # Run the selected page
 pg.run()

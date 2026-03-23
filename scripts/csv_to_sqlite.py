@@ -1,7 +1,10 @@
 from pathlib import Path
 from sqlalchemy import create_engine
 import pandas as pd
-import os
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+
 
 def load_folder_to_sqlite(
         input_folder: Path,
@@ -48,3 +51,20 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     load_folder_to_sqlite(args.input, args.output, args.delimiter, args.encoding)
+
+
+    import sqlite3
+    import pandas as pd
+
+    conn = sqlite3.connect("data/sql/accidents.db")
+
+    df = pd.read_sql_query("""
+    SELECT strftime('%Y-%m', timestamp) AS month, COUNT(*) as n
+    FROM accidents
+    WHERE timestamp IS NOT NULL
+    GROUP BY month
+    ORDER BY month
+    """, conn)
+
+    print(df.head())
+    print(df.tail())

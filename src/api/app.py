@@ -76,7 +76,7 @@ def predict_accident(accident: Accident):
     from src.models.predict_model import predict_dataframe, load_artifact
     import pandas as pd
     try:
-        model_file = last_file_in_folder("models", "model_*.pkl")
+        model_file = last_file_in_folder("models/best_model_bundle", "*.pkl")
         if not model_file:
             raise HTTPException(status_code=404, detail="No trained model found")
 

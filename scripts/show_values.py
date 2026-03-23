@@ -4,7 +4,6 @@ import json
 
 from src.util import single_file_in_folder
 
-
 FEATURES = {
     "numeric_cols": ["age", "lane_width"],
     "categorical_cols": [
@@ -36,7 +35,6 @@ FEATURES = {
         "is_urban",
     ],
 }
-
 
 def load_single_table(db_path: str) -> pd.DataFrame:
     conn = sqlite3.connect(db_path)
@@ -77,3 +75,19 @@ if __name__ == "__main__":
     file = single_file_in_folder("data/processed", "accidents_*.db")
     df = load_single_table(file)
     describe_features(df)
+
+    import sqlite3
+    import pandas as pd
+
+    conn = sqlite3.connect("data/raw/accidents.db")
+
+    df = pd.read_sql_query("""
+    SELECT strftime('%Y-%m', timestamp) AS month, COUNT(*) as n
+    FROM caract
+    WHERE timestamp IS NOT NULL
+    GROUP BY month
+    ORDER BY month
+    """, conn)
+
+    print(df.head())
+    print(df.tail())

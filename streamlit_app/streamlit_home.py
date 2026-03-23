@@ -1,38 +1,9 @@
-# ----------------------------------------------
-# import modules
-# ----------------------------------------------
-
-# classic packages
-import pandas as pd
-import numpy as np
-
-# io, load, dump
-import io
-import joblib
-from joblib import dump, load
-from pathlib import Path
-
-# visualization
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# helper
-import time
-import random
-import json
-
-# custom libraries
-import sys
-#sys.path.append('../../library')
-
-# streamlit
 import streamlit as st
-#import streamlit_functions as st_funct
+import streamlit_app.components.clock as clock
 
 # warnings
 import warnings
 warnings.filterwarnings("ignore")
-
 
 # ----------------------------------------------
 # Homepage: Context & Objectives
