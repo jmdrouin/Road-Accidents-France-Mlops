@@ -1,25 +1,32 @@
+import mlflow
+
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore")
+
+import os
+os.environ['MLFLOW_TRACKING_SILENT'] = 'true'
 
 import logging
-logging.getLogger("mlflow.utils.environment").setLevel(logging.ERROR)
-
-import mlflow
-import mlflow.sklearn
+loggers = [
+    "mlflow", 
+    "mlflow.models.model", 
+    "mlflow.utils.environment", 
+    "mlflow.tracking._model_registry.client"
+]
+for logger_name in loggers:
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
+import tempfile
 import joblib
+
 from pathlib import Path
 
-import sys
-import io
-import os
-import tempfile
-
 from scripts.run_pipeline import run_pipeline
+from src.models.select_model import select_and_store_best_model
 
 def get_latest_model_path():
     model_dir = Path("models")
@@ -150,3 +157,8 @@ if __name__ == "__main__":
     print(f"START: Start MLflow tracking for: {path}")
     track_results(artifact)
     print("OK: Tracking has concluded successfully!")
+
+    # 4. Select best model
+    # todo: other metrics
+    print("Select best model for: F1-Macro")
+    select_and_store_best_model(experiment_name="Road_Accidents_France", metric="f1_macro")

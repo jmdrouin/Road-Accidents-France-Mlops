@@ -7,7 +7,7 @@ def export(model, feature_names, label_encoder, encoder, cat_imputer, num_impute
     # Create models directory
     Path("models").mkdir(exist_ok=True)
 
-    print(f"✓ Feature names reconstructed: {len(feature_names)} features")
+    print(f"  Feature names reconstructed: {len(feature_names)} features")
     print(f"  First 10: {feature_names[:10]}")
     print(f"  Sample age_group features: {[f for f in feature_names if 'age_group' in f][:5]}")
 

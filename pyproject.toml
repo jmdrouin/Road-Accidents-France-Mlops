@@ -22,6 +22,7 @@ dependencies = [
     "sqlalchemy>=2.0.46",
     "streamlit>=1.55.0",
     "uvicorn>=0.41.0",
+    "apscheduler>=3.11.2",
 ]
 
 [dependency-groups]

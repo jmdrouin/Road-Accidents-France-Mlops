@@ -14,5 +14,8 @@ models/*
 mlruns/
 data/mlflow/*
 
+# logs
+logs/*
+
 # local
 _local/*

@@ -35,6 +35,19 @@ Streamlit -> http://localhost:8501
 API docs -> http://localhost:8000/docs
 
 ==============================
+## run scheduler, every 5min
+==============================
+uv run scripts/run_scheduler.py 5
+
+The scheduler prints output to the terminal after it has run.
+Log: scheduler.log
+
+==============================
+## run select_model separately
+==============================
+$env:PYTHONPATH = "."; uv run python -m src.models.select_model
+
+==============================
 ## MLflow
 ==============================
 
