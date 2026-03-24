@@ -8,7 +8,10 @@ is_background = not sys.stdout.isatty()
 if is_background:
     os.environ["TQDM_DISABLE"] = "1"
 
-def run_pipeline(nrows: int | float | None = None):
+def run_pipeline():
+    from src.util.config import CONFIG
+    nrows = CONFIG["data"]["nrows"]
+
     print("Fetching Data")
     data_file, num_rows = fetch_data(simulated_time())
 
@@ -22,5 +25,4 @@ def run_pipeline(nrows: int | float | None = None):
     )
 
 if __name__ == "__main__":
-    from src.util.config import CONFIG
-    run_pipeline(nrows=CONFIG["data"]["nrows"])
+    run_pipeline()
