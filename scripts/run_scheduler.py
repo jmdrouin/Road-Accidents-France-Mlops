@@ -6,7 +6,7 @@ import argparse
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
 from src.util.config import CONFIG
-from src.models.track_model import main as run_track_model_pipeline
+from src.models.track_model_remote import main as run_track_model_pipeline
 
 logging.basicConfig(
     level=logging.INFO,

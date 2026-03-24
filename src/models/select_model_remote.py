@@ -10,7 +10,8 @@ if env_path.exists():
 else:
     raise FileNotFoundError(f".env not found in root")
 
-repo_owner = os.environ['MLFLOW_TRACKING_USERNAME']
+repo_owner = os.environ['MLFLOW_TRACKING_REPO_OWNER']
+user = os.environ['MLFLOW_TRACKING_USERNAME']
 repo_name = os.environ['MLFLOW_TRACKING_REPO']
 token = os.environ['MLFLOW_TRACKING_PASSWORD']
 repo_url = f"https://dagshub.com/{repo_owner}/{repo_name}.s3"
@@ -23,11 +24,8 @@ os.environ['MLFLOW_S3_IGNORE_TLS'] = 'true'
 print(f"S3 endpoint: {os.getenv('MLFLOW_S3_ENDPOINT_URL')}")
 
 import mlflow
-import dagshub
 import shutil
 import joblib
-
-from mlflow.tracking import MlflowClient
 
 import logging
 logging.getLogger("mlflow.utils.requirements_utils").setLevel(logging.ERROR)

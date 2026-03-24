@@ -12,7 +12,8 @@ if env_path.exists():
 else:
     raise FileNotFoundError(f".env not found in root")
 
-repo_owner = os.environ['MLFLOW_TRACKING_USERNAME']
+repo_owner = os.environ['MLFLOW_TRACKING_REPO_OWNER']
+user = os.environ['MLFLOW_TRACKING_USERNAME']
 repo_name = os.environ['MLFLOW_TRACKING_REPO']
 token = os.environ['MLFLOW_TRACKING_PASSWORD']
 repo_url = f"https://dagshub.com/{repo_owner}/{repo_name}.s3"
@@ -87,14 +88,17 @@ def load_model(file_path: str):
 
 def track_results(artifact):
 
+    print(f" -- Initilializing dagshub. repo_owner={repo_owner} repo_name={repo_name}")
     dagshub.init(
-        repo_owner = repo_owner, #'ASi-DS', #jmdrouin #todo
+        repo_owner = repo_owner, 
         repo_name = repo_name,
         mlflow=True
     )
     
+    print(f" -- Set experiment to Road_Accidents_France")
     mlflow.set_experiment("Road_Accidents_France")
 
+    print(f" -- MLFlow Run")
     with mlflow.start_run(run_name=f"LGBM_{artifact['timestamps']['created']}"):
 
         # 1. Filter metrics: allow only numbers
@@ -162,8 +166,7 @@ def track_results(artifact):
 
         print(f"OK: Run finished: {mlflow.active_run().info.run_id}")
 
-if __name__ == "__main__":
-
+def main():
     # 0. Run pipeline
     run_pipeline()
 
@@ -186,3 +189,6 @@ if __name__ == "__main__":
     # todo: other metrics
     print("Select best model for: F1-Macro")
     select_and_store_best_model(experiment_name="Road_Accidents_France", metric="f1_macro")
+
+if __name__ == "__main__":
+    main()

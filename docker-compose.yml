@@ -41,6 +41,7 @@ services:
       - ./data:/app/data
       - ./models:/app/models
       - ./mlruns:/app/data/mlflow
+      - ./.env:/app/.env
     depends_on:
       - api
     command: >
