@@ -1,14 +1,16 @@
 
 from datetime import datetime
-
+from src.util.config import CONFIG
 
 def simulated_time() -> datetime:
+    experiment = CONFIG["experiment"]
+
     return map_to_simulated_time(
         real_time = datetime.now(),
-        real_start = datetime(2026, 3, 20),
-        real_end = datetime(2026, 4, 1),
-        sim_start = datetime(2005, 1, 1),
-        sim_end = datetime(2017,1,1)
+        real_start = experiment["real_start"],
+        real_end = experiment["real_end"],
+        sim_start = experiment["sim_start"],
+        sim_end = experiment["sim_end"]
     )
 
 def map_to_simulated_time(

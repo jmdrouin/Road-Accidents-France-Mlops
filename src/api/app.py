@@ -72,7 +72,7 @@ PREDICT_COLUMNS = [
 
 @app.post("/predict")
 def predict_accident(accident: Accident):
-    from src.util import last_file_in_folder
+    from src.util.files import last_file_in_folder
     from src.models.predict_model import predict_dataframe, load_artifact
     import pandas as pd
     try:

@@ -8,7 +8,7 @@ import sqlite3 #asi
 
 def read_accidents(
     file,
-    nrows: int | None
+    nrows: int | float | None
 ) -> pd.DataFrame:
     
     conn = sqlite3.connect(file)
@@ -18,7 +18,13 @@ def read_accidents(
     params = {}
 
     limit_clause = ""
-    if nrows is not None:
+
+    if isinstance(nrows, float):
+        if not (0 <= nrows <= 1):
+            raise ValueError(f"nrows must be int or between 0 and 1, got {nrows}")
+        limit_clause = f" ORDER BY RANDOM() LIMIT (SELECT CAST(COUNT(*) * :nrows AS INTEGER) FROM {table})"
+        params["nrows"] = nrows
+    elif nrows is not None:
         limit_clause = " ORDER BY RANDOM() LIMIT :nrows"
         params["nrows"] = nrows
 

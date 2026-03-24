@@ -1,7 +1,7 @@
 
 from src.models.split_and_transform import split, transform, prepare_transformers
 from src.models.export import export
-from src.util import single_file_in_folder
+from src.util.files import single_file_in_folder
 from imblearn.over_sampling import BorderlineSMOTE
 from lightgbm import LGBMClassifier
 import pandas as pd
@@ -123,7 +123,7 @@ def train_model_from_dataframe(accidents_df: pd.DataFrame, info, timestamp):
         num_imputer, scaler, info, metrics, timestamp, x_sample, y_sample
     )
 
-def train_model(nrows: int | None, info):
+def train_model(nrows: int | float | None, info):
     import src.data.sql as sql
 
     file = single_file_in_folder("data/processed", "accidents_*.db")

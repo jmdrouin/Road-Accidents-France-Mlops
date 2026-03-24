@@ -20,3 +20,28 @@ services:
       API_BASE_URL: http://api:8000
     depends_on:
       - api
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./data:/app/data
+      - ./mlruns:/app/data/mlflow
+    command: >
+      uv run mlflow ui --backend-store-uri sqlite:////app/data/mlflow/mlflow.db --host 0.0.0.0 --port 5000
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./mlruns:/app/data/mlflow
+    depends_on:
+      - api
+    command: >
+      uv run python -m scripts.run_scheduler

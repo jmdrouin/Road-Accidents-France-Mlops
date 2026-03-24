@@ -1,22 +1,19 @@
 from src.data.fetch_data import fetch_data
 from src.features.build_features import build_features
 from src.models.train_model import train_model
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from src.util.time_machine import simulated_time
 
-import sys
-import os
+import sys, os
 is_background = not sys.stdout.isatty()
 if is_background:
     os.environ["TQDM_DISABLE"] = "1"
 
-def n_years_ago(n):
-    result = datetime.now() - relativedelta(years=n)
-    return result.strftime("%Y-%m-%d %H:%M:%S")
+def run_pipeline():
+    from src.util.config import CONFIG
+    nrows = CONFIG["data"]["nrows"]
 
-def run_pipeline(nrows: int | None = None):
     print("Fetching Data")
-    data_file, num_rows = fetch_data(n_years_ago(20))
+    data_file, num_rows = fetch_data(simulated_time())
 
     print("Building features")
     features_file = build_features()
@@ -28,4 +25,4 @@ def run_pipeline(nrows: int | None = None):
     )
 
 if __name__ == "__main__":
-    run_pipeline(nrows=100000)
+    run_pipeline()

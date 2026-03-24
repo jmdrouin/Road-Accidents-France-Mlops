@@ -6,7 +6,7 @@ from typing import Any
 import joblib
 import pandas as pd
 
-from src.util import last_file_in_folder
+from src.util.files import last_file_in_folder
 from src.models.split_and_transform import transform
 from src.models.accident import build_accident_model
 

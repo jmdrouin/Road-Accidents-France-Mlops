@@ -5,6 +5,8 @@ import logging
 import argparse
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
+from src.util.config import CONFIG
+from src.models.track_model import main as run_track_model_pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,48 +18,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+default_interval = CONFIG["runtime"]["scheduler_interval"]
+
 parser = argparse.ArgumentParser(description="Road Accident Pipeline Scheduler")
 parser.add_argument(
     "interval", 
     type=int, 
     nargs="?", 
-    default=5, 
+    default=default_interval, 
     help="Interval in minutes (default: 5)"
 )
 args = parser.parse_args()
 
 def run_my_pipeline():
-
-    # 1. Define the relative path to run_pipeline script (works on Win or Mac)
-    #script_path = os.path.join("scripts", "run_pipeline.py")
-    script_path = os.path.join("src", "models", "track_model.py")
-
-    current_env = os.environ.copy()
-    current_env["PYTHONPATH"] = os.getcwd() # root folder
-    
-    print(f"[{datetime.now()}] Starting: {script_path}")
-    logger.info(f"[{datetime.now()}] Starting: {script_path}")
+    logger.info(f"[{datetime.now()}] Starting pipeline")
     
     try:
-        # 2. Run the script using the current 'uv' python environment
-
-        #subprocess.run([sys.executable, script_path], check=True)
-        result = subprocess.run(
-            [sys.executable, script_path], 
-            capture_output=True, 
-            text=True, 
-            check=True,
-            encoding="utf-8",    # Windows/Mac
-            errors="replace",
-            env=current_env  # path
-        )
-
-        # OK
+        run_track_model_pipeline()
         print(f"[{datetime.now()}] Pipeline finished successfully.")
         logger.info(f"[{datetime.now()}] Pipeline finished successfully.")
-
-        if result.stdout:
-            logger.info(f"Pipeline Output:\n{result.stdout}")
         
     except subprocess.CalledProcessError as e:
         print(f"[{datetime.now()}] ERROR: Pipeline failed.")

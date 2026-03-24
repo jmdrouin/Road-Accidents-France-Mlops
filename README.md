@@ -45,7 +45,7 @@ Log: scheduler.log
 ==============================
 ## run select_model separately
 ==============================
-$env:PYTHONPATH = "."; uv run python -m src.models.select_model
+ $env:PYTHONPATH = "."; uv run python -m src.models.select_model
 
 ==============================
 ## MLflow
@@ -69,6 +69,10 @@ Start-Job -Name "mlflow" -ScriptBlock {
     Set-Location "[local path to Road-Accidents-France-Mlops]"
     uv run mlflow ui --backend-store-uri sqlite:///[local path to Road-Accidents-France-Mlops]/data/mlflow/mlflow.db --host 127.0.0.1 --port 5000
 }
+
+## ? Alternative
+uv run mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db
+http://127.0.0.1:5000/#/experiments/1
 
 ==============================
 ## Project Name

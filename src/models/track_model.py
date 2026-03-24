@@ -1,5 +1,10 @@
 import mlflow
 
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -138,8 +143,7 @@ def track_results(artifact):
 
         print(f"OK: Run finished: {mlflow.active_run().info.run_id}")
 
-if __name__ == "__main__":
-
+def main():
     # 0. Run pipeline
     run_pipeline()
 
@@ -162,3 +166,6 @@ if __name__ == "__main__":
     # todo: other metrics
     print("Select best model for: F1-Macro")
     select_and_store_best_model(experiment_name="Road_Accidents_France", metric="f1_macro")
+
+if __name__ == "__main__":
+    main()

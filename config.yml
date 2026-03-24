@@ -1,0 +1,17 @@
+experiment:
+  # Real experiment timeline
+  real_start: 2026-03-20 00:00:00
+  real_end: 2026-04-01 00:00:00
+
+  # Simulated data range
+  sim_start: 2005-01-01 00:00:00
+  sim_end: 2017-01-01 00:00:00 
+
+data:
+  # Fraction of dataset to use (0–1)
+  # (For speed reasons)
+  nrows: 0.15
+
+runtime:
+  # How often to run (in minutes)
+  scheduler_interval: 5
