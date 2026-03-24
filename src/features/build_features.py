@@ -9,7 +9,7 @@ import src.features._cleanup_vehicles as cleanup_vehicles
 import src.features._cleanup_holidays as cleanup_holidays
 import src.features._cleanup_accidents as prepare_accidents_data
 import src.data.sql as sql
-from src.util import single_file_in_folder
+from src.util.files import single_file_in_folder
 from pathlib import Path
 import glob, os
 

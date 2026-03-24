@@ -5,6 +5,7 @@ import logging
 import argparse
 from apscheduler.schedulers.blocking import BlockingScheduler
 from datetime import datetime
+from src.util.config import CONFIG
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,18 +17,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+default_interval = CONFIG["runtime"]["scheduler_interval"]
+
 parser = argparse.ArgumentParser(description="Road Accident Pipeline Scheduler")
 parser.add_argument(
     "interval", 
     type=int, 
     nargs="?", 
-    default=5, 
+    default=default_interval, 
     help="Interval in minutes (default: 5)"
 )
 args = parser.parse_args()
 
 def run_my_pipeline():
-
     # 1. Define the relative path to run_pipeline script (works on Win or Mac)
     #script_path = os.path.join("scripts", "run_pipeline.py")
     script_path = os.path.join("src", "models", "track_model.py")

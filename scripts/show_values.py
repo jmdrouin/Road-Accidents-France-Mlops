@@ -2,7 +2,7 @@ import sqlite3
 import pandas as pd
 import json
 
-from src.util import single_file_in_folder
+from src.util.files import single_file_in_folder
 
 FEATURES = {
     "numeric_cols": ["age", "lane_width"],

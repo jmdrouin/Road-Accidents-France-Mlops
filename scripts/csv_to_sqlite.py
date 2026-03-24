@@ -2,9 +2,6 @@ from pathlib import Path
 from sqlalchemy import create_engine
 import pandas as pd
 import sqlite3
-import pandas as pd
-import matplotlib.pyplot as plt
-
 
 def load_folder_to_sqlite(
         input_folder: Path,
