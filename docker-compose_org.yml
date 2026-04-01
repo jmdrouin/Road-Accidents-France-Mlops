@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.api
     ports:
-      - "8001:8001"
+      - "8000:8000"
     volumes:
       - ./models:/app/models
     environment:
@@ -17,9 +17,21 @@ services:
     ports:
       - "8501:8501"
     environment:
-      API_BASE_URL: http://api:8001
+      API_BASE_URL: http://api:8000
     depends_on:
       - api
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./data:/app/data
+      - ./mlruns:/app/data/mlflow
+    command: >
+      uv run mlflow ui --backend-store-uri sqlite:////app/data/mlflow/mlflow.db --host 0.0.0.0 --port 5000
 
   scheduler:
     build:

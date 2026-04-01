@@ -1,8 +1,6 @@
 # uvicorn src.api.app:app --reload
 # $env:MODEL_DIR = ".\models"; uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8001 --reload
 
-# http://localhost:8001/docs#/
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -25,9 +23,8 @@ class DatasetRequest(BaseModel):
 def health():
     return {"status": "ok"}
 
-'''
-# curl -X POST http://127.0.0.1:8001/fetch_data -H "Content-Type: application/json"
-@app.post("/fetch_data")
+# curl -X POST http://127.0.0.1:8000/update_data -H "Content-Type: application/json"
+@app.post("/update_data")
 def update_data():
     from src.data.fetch_data import fetch_data
     def n_years_ago(n):
@@ -46,7 +43,7 @@ def update_data():
         "num_rows": num_rows
     }
 
-# curl -X POST http://127.0.0.1:8001/build_features -H "Content-Type: application/json"
+# curl -X POST http://127.0.0.1:8000/build_features -H "Content-Type: application/json"
 @app.post("/build_features")
 def build_features_from_latest_data():
     from src.features.build_features import build_features
@@ -59,7 +56,7 @@ def build_features_from_latest_data():
 class TrainRequest(BaseModel):
     max_rows: Optional[int] = None
 
-# curl -X POST http://127.0.0.1:8001/train_model -H "Content-Type: application/json"
+# curl -X POST http://127.0.0.1:8000/train_model -H "Content-Type: application/json"
 # OR with a subset of the data: ... -d '{"max_rows": 50000}'
 @app.post("/train_model")
 def train_new_model(request: TrainRequest):
@@ -69,7 +66,6 @@ def train_new_model(request: TrainRequest):
         "status": "ok",
         "file_written": file_written,
     }
-'''
 
 PREDICT_COLUMNS = [
     "timestamp", "collision_label", "is_weekend", "season",
@@ -89,7 +85,7 @@ def predict_accident(accident: Accident):
     import pandas as pd
     try:
         #model_file = last_file_in_folder("models/best_model_bundle", "*.pkl")
-        model_file = last_file_in_folder("models", "model_*.pkl") #latest
+        model_file = last_file_in_folder("models", "model_*.pkl") #todo: best, workaround
         if not model_file:
             raise HTTPException(status_code=404, detail="No trained model found")
 
@@ -129,7 +125,8 @@ def predict_accident(accident: Accident):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-'''
+
+
 @app.post("/run_pipeline")
 def run_pipeline(request: TrainRequest):
     from src.data.fetch_data import fetch_data
@@ -156,7 +153,6 @@ def run_pipeline(request: TrainRequest):
         "features_file": features_file,
         "model_file": model_file,
     }
-'''
 
 # import track_model_remote
 from src.models.track_model_remote import (
@@ -164,29 +160,12 @@ from src.models.track_model_remote import (
      get_latest_model_path, 
      load_model, 
      track_results, 
-     select_and_store_best_model,
-     main
+     select_and_store_best_model
 )
 
-# curl -X POST http://127.0.0.1:8001/run_pipeline -H "Content-Type: application/json"
-# Invoke-RestMethod -Method Post -Uri "http://localhost:8001/run_pipeline"
-@app.post("/run_pipeline") #run_tracking_remote
-def run_pipeline():
-    try:
-        main()
-
-        return {
-            "status": "success",
-            "message": "Tracking successfully concluded"
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-'''
-# curl -X POST http://127.0.0.1:8001/run_pipeline -H "Content-Type: application/json"
-# Invoke-RestMethod -Method Post -Uri "http://localhost:8001/run_pipeline"
-@app.post("/run_pipeline") #run_tracking_remote
+# curl -X POST http://127.0.0.1:8001/run_tracking_remote -H "Content-Type: application/json"
+# Invoke-RestMethod -Method Post -Uri "http://localhost:8001/run_tracking_remote"
+@app.post("/run_tracking_remote")
 def run_tracking_remote():
     try:
         # 0. run pre-pipeline
@@ -219,4 +198,4 @@ def run_tracking_remote():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-'''
+    

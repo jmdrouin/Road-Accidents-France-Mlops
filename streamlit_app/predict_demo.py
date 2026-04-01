@@ -10,7 +10,7 @@ from typing import get_args
 from src.models.accident import build_accident_model
 
 Accident = build_accident_model()
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8001") #8000
 
 PREDICT_COLUMNS = [
     "timestamp", "collision_label", "is_weekend", "season",
@@ -235,7 +235,10 @@ def build_input_data():
     return data
 
 def predict_demo():
-    st.header("")
+    
+    st.title("Accident prediction")
+    #st.header("")
+    
     st.set_page_config(layout="wide")
 
     left_col, right_col = st.columns([1, 1])
@@ -284,6 +287,13 @@ def display_prediction(input_data):
 def display_probability_chart_from_dict(probabilities: dict[str, float]):
     import plotly.graph_objects as go
 
+    color_map = {
+        "Killed": "#D32F2F",               # dark red
+        "Injured_Hospitalized": "#F57C00", # orange
+        "Injured_Slight": "#FBC02D",       # yellow
+        "Uninjured": "#388E3C",            # green
+    }
+    
     desired_order = [
         "Killed",
         "Injured_Hospitalized",
@@ -305,6 +315,7 @@ def display_probability_chart_from_dict(probabilities: dict[str, float]):
                 orientation="h",
                 text=[f"{value:.1%}"],
                 textposition="inside",
+                marker_color=color_map.get(label, "#7f7f7f") #new
             )
         )
 
@@ -317,7 +328,7 @@ def display_probability_chart_from_dict(probabilities: dict[str, float]):
         margin=dict(l=20, r=20, t=20, b=20),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True) #, theme=None
 
 def display_probability_chart(result):
     import plotly.graph_objects as go

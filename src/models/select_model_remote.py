@@ -20,7 +20,7 @@ os.environ['AWS_ACCESS_KEY_ID'] = token
 os.environ['AWS_SECRET_ACCESS_KEY'] = token
 os.environ['MLFLOW_S3_IGNORE_TLS'] = 'true'
 
-print(f"S3 endpoint: {os.getenv('MLFLOW_S3_ENDPOINT_URL')}")
+#print(f"S3 endpoint: {os.getenv('MLFLOW_S3_ENDPOINT_URL')}")
 
 import mlflow
 import dagshub
@@ -38,6 +38,8 @@ def select_and_store_best_model(experiment_name="Road_Accidents_France", metric=
     Find best run in MLflow, create bundle, store locally as .pkl
     """
     try:
+        print(f"S3 endpoint: {os.getenv('MLFLOW_S3_ENDPOINT_URL')}")
+
         # 1. Set tracking URL
         mlflow.set_tracking_uri(f"https://dagshub.com/{repo_owner}/{repo_name}.mlflow")
         
@@ -133,7 +135,7 @@ def select_and_store_best_model(experiment_name="Road_Accidents_France", metric=
                 
                 # 2. set alias 'best' for this version
                 client.set_registered_model_alias(original_model_name, "best", best_version)
-                print(f"Sucsess: Model '{original_model_name}' Version {best_version} is now marked as 'best'.")
+                print(f"Success: Model '{original_model_name}' Version {best_version} is now marked as 'best'.")
             else:
                 print(f"Warning: No registered Version found for run {best_run_id}.")
         

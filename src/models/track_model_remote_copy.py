@@ -174,10 +174,31 @@ def track_results(artifact):
 
         print(f"OK: Run finished: {mlflow.active_run().info.run_id}")
 
+def delete_run():
+
+    dagshub.init(
+        repo_owner = repo_owner,
+        repo_name = repo_name,
+        mlflow=True
+    )
+
+    #RUN_ID = "fa5c3b4a8c9a47efb0bf696022b593f3"
+    RUN_ID = "9bdfe4795cbc4b969fbf503f3d4f850f"
+
+    try:
+        print(f"Lösche Run: {RUN_ID} ...")
+        mlflow.delete_run(RUN_ID)
+        print(f"ERFOLG: Run {RUN_ID} wurde gelöscht.")
+    except Exception as e:
+        print(f"FEHLER: Löschen fehlgeschlagen. Details: {e}")
+
 def main():
+
+    delete_run()
+    '''
     # 0. Run pre-pipeline
-    run_pipeline()
-    
+    #run_pipeline()
+
     print("Track model...")
     # 1. Find path to newest model
     path = get_latest_model_path() 
@@ -195,8 +216,9 @@ def main():
     print("OK: Tracking has concluded successfully!")
 
     # 4. Select best model
-    print("Select best model for metric: F1-Macro")
-    select_and_store_best_model(experiment_name="Road_Accidents_France", metric="f1_macro")
-
+    #print("Select best model for metric: F1-Macro")
+    #select_and_store_best_model(experiment_name="Road_Accidents_France", metric="f1_macro")
+    '''
+    
 if __name__ == "__main__":
     main()

@@ -30,20 +30,36 @@ def combine_to_accidents_dataframe(
     print("Preparing Vehicles")
     vehicles = cleanup_vehicles.cleanup_vehicles(vehicles)
     print("Preparing Holidays")
-    holidays = cleanup_holidays.cleanup_holidays(holidays)
+    #holidays = cleanup_holidays.cleanup_holidays(holidays)
+    holidays = cleanup_holidays.cleanup_holidays(holidays).drop_duplicates(subset=['date'])
 
     print("Merging dataframes")
     # Merge all dataframes into one
+    '''
     acc = caract.copy() \
         .merge(places, how="left", on="accident_id") \
         .merge(vehicles, how="left", on="accident_id") \
         .merge(users, how="left", on=["accident_id", "vehicle_id"]) \
         .merge(holidays, how="left", on="date")
+    '''
+    acc = caract \
+        .merge(places, how="left", on="accident_id") \
+        .merge(vehicles, how="left", on="accident_id") \
+        .merge(users, how="left", on=["accident_id", "vehicle_id"])
+    
+    #new: make sure date same in both dfs
+    acc["date"] = pd.to_datetime(acc["date"])
+    holidays["date"] = pd.to_datetime(holidays["date"])
+    acc = acc.merge(holidays[['date', 'is_holiday', 'holiday_name']], how="left", on="date")
 
     print("Processing aggregated accidents data")
     # Dates absent from the holidays dataframe are just "not a holiday"
-    acc["is_holiday"] = acc["is_holiday"].fillna(0).astype(int)
-    acc["holiday_name"] = acc["holiday_name"].fillna("Not a holiday")
+    #acc["is_holiday"] = acc["is_holiday"].fillna(0).astype(int)
+    #acc["holiday_name"] = acc["holiday_name"].fillna("Not a holiday")
+
+    acc["is_holiday"] = acc["is_holiday"].fillna(0).astype('int8') # int8 less RAM than int64
+    acc["holiday_name"] = acc["holiday_name"].fillna("Not a holiday").astype('category') # category needs less RAM
+
     acc = prepare_accidents_data.prepare_accidents_data(acc)
 
     return acc

@@ -1,3 +1,17 @@
+# ----------------------------------------------
+# Run streamlit app with:
+
+# python -m streamlit run streamlit_app/streamlit_main.py
+
+# .venv\Scripts\activate
+# streamlit run streamlit_app/streamlit_main.py
+
+# uv run streamlit run streamlit_app/streamlit_main.py
+
+# $env:PYTHONPATH = "."; uv run streamlit run streamlit_app/streamlit_main.py
+#
+# ----------------------------------------------
+
 # warnings
 import warnings
 warnings.filterwarnings("ignore")
@@ -6,8 +20,14 @@ warnings.filterwarnings("ignore")
 import streamlit as st
 
 from streamlit_home import run_home_page
-from streamlit_0 import run_page_0
+#from streamlit_0 import run_page_0
+from streamlit_diagram import streamlit_diagram
+from streamlit_data import streamlit_data
+from streamlit_schedule import streamlit_schedule
+from streamlit_mlflow import streamlit_mlflow
 from predict_demo import predict_demo
+from streamlit_next import streamlit_next
+
 
 from components.clock import display_simulated_date
 
@@ -40,14 +60,20 @@ st.markdown("""
 # ----------------------------------------------
 
 #material icons: eg 
-# analytics bar_chart code computer insights database
-# arrow_forward_ios trending_up
+# home database bar_chart insights model_training analytics trending_up
+# code computer
+# arrow_forward_ios
+# history schedule description event_note terminal
 
 #Sections
 pages = [
     st.Page(run_home_page, title="Home", icon=":material/home:"),
-    st.Page(run_page_0, title="Dataset", icon=":material/database:"),
-    st.Page(predict_demo, title="Demo", icon=":material/database:")
+    st.Page(streamlit_diagram, title="Architecture", icon=":material/insights:"),
+    st.Page(streamlit_data, title="Data processing", icon=":material/database:"),
+    #st.Page(streamlit_schedule, title="Scheduler", icon=":material/schedule:"),
+    st.Page(streamlit_mlflow, title="MLflow", icon=":material/model_training:"),
+    st.Page(predict_demo, title="Prediction", icon=":material/analytics:"),
+    st.Page(streamlit_next, title="Next Steps", icon=":material/trending_up:")
 ]
 
 # Create the navigation menu

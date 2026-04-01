@@ -15,6 +15,8 @@ def fetch_data(cutoff: str):
         os.remove(f)
 
     destination = dest_folder + "/accidents_" + pd.Timestamp(cutoff).strftime("%Y%m%d%H%M%S") + ".db"
+    print("Cutoff:", cutoff)
+    print("Destination:", destination)
 
     shutil.copy(source, destination)
 
